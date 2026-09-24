@@ -22,12 +22,14 @@ class MarkdownString {
  appendCodeblock(value,language){this.value+='```'+language+'\n'+value+'\n```';return this;}
 }
 class Document {
- constructor(text){this.text=text;this.uri=Uri.parse('file:///workspace/Account.escript');this.languageId='escript';this.version=1;this.isClosed=false;}
+ constructor(text,name='Account.escript'){this.text=text;this.uri=Uri.parse('file:///workspace/'+name);this.languageId='escript';this.version=1;this.isClosed=false;}
  getText(){return this.text;}
  positionAt(offset){const lines=this.text.slice(0,offset).split('\n');return new Position(lines.length-1,lines.at(-1).length);}
  offsetAt(p){const lines=this.text.split('\n');return lines.slice(0,p.line).reduce((n,l)=>n+l.length+1,0)+p.character;}
 }
 function stub(document){
+ const documents=Array.isArray(document)?document:[document];
+ document=documents[0];
  const providers={},events={},diagnostics=new Map(),logs=[];
  const api={Position,Range,Uri,MarkdownString,
  CompletionItemKind:new Proxy({}, {get:(_,k)=>k}),SymbolKind:new Proxy({}, {get:(_,k)=>k}),DiagnosticSeverity:{Error:0,Warning:1},
@@ -43,8 +45,8 @@ function stub(document){
  FoldingRange:class {constructor(start,end){Object.assign(this,{start,end});}},
  TextEdit:{replace:(range,newText)=>({range,newText})},
  window:{createOutputChannel:()=>({appendLine:s=>logs.push(s),dispose(){}})},
- workspace:{textDocuments:[document],getConfiguration:()=>({get:(_name,fallback)=>fallback}),getWorkspaceFolder:()=>({uri:Uri.parse('file:///workspace')}),
-  fs:{readFile:async()=>{throw Error('not used');}},
+ workspace:{textDocuments:documents,getConfiguration:()=>({get:(_name,fallback)=>fallback}),getWorkspaceFolder:()=>({uri:Uri.parse('file:///workspace')}),
+  fs:{readDirectory:async()=>documents.map(d=>[path.posix.basename(d.uri.path),1]),readFile:async uri=>Buffer.from(documents.find(d=>d.uri.toString()===uri.toString()).getText())},
   createFileSystemWatcher:()=>({onDidChange:()=>disposable(),onDidCreate:()=>disposable(),onDidDelete:()=>disposable(),dispose(){}})},
  languages:{createDiagnosticCollection:()=>({set:(uri,data)=>diagnostics.set(uri.toString(),data),delete:uri=>diagnostics.delete(uri.toString()),dispose(){diagnostics.clear();}})},
  commands:{registerCommand:(name,fn)=>{events[name]=fn;return disposable();}},
@@ -56,8 +58,8 @@ function stub(document){
  return {api,providers,events,diagnostics,logs};
 }
 test('extension activation, providers, live diagnostics and close lifecycle',async()=>{
- const text='var bc: BusComp = TheApplication().GetBusObject("Account").GetBusComp("Account");\nwith(bc) {\n    ExecuteQuery("wrong");\n    GetFieldValue("Name");\n}\n';
- const doc=new Document(text),fake=stub(doc),context={subscriptions:[]};
+ const text='var bc: BusComp = TheApplication().GetBusObject("Account").GetBusComp("Account");\nSharedHelper();\nwith(bc) {\n    ExecuteQuery("wrong");\n    GetFieldValue("Name");\n}\n';
+ const doc=new Document(text),helper=new Document('function SharedHelper(): chars { return "ok"; }','Shared.escript'),fake=stub([doc,helper]),context={subscriptions:[]};
  const original=Module._load;
  let extension;
  try {Module._load=function(name,...args){return name==='vscode'?fake.api:original.call(this,name,...args);};extension=require('../src/extension');}
@@ -72,6 +74,9 @@ test('extension activation, providers, live diagnostics and close lifecycle',asy
   assert(hover.contents.some(m=>m.value.includes('current record')));
   const definitions=await fake.providers.Definition.provideDefinition(doc,cursor,token);
   assert(definitions.some(l=>l.uri.path.endsWith('/types/siebel.d.ts')));
+  const sharedCursor=doc.positionAt(text.indexOf('SharedHelper')+3);
+  const sharedDefinitions=await fake.providers.Definition.provideDefinition(doc,sharedCursor,token);
+  assert(sharedDefinitions.some(l=>l.uri.toString()===helper.uri.toString()));
   const refs=await fake.providers.Reference.provideReferences(doc,cursor,{includeDeclaration:false},token);
   assert(refs.some(r=>r.uri.toString()===doc.uri.toString()));
   const items=await fake.providers.CompletionItem.provideCompletionItems(doc,doc.positionAt(text.indexOf('    GetField')),token);

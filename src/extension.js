@@ -45,6 +45,8 @@ function activate(context) {
     let disposed = false;
     const configuration = document => vscode.workspace.getConfiguration('escript', document.uri);
     const eligible = document => document.languageId === 'escript' && !document.isClosed;
+    const directoryUri = uri => vscode.Uri.joinPath(uri, '..');
+    const directoryKey = uri => directoryUri(uri).toString();
     const error = err => output.appendLine(`[Error] ${err && err.stack || err}`);
     async function safe(run, fallback) { try { return await run(); } catch (err) { error(err); return fallback; } }
 
@@ -66,18 +68,34 @@ function activate(context) {
         }
         return declarations.get(key);
     }
+    async function siblingScripts(document) {
+        const directory = directoryUri(document.uri);
+        const entries = await vscode.workspace.fs.readDirectory(directory);
+        return Promise.all(entries
+            .filter(([name]) => name.toLowerCase().endsWith('.escript'))
+            .map(async ([name]) => {
+                const uri = vscode.Uri.joinPath(directory, name);
+                const open = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+                const text = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+                return { uri: uri.toString(), text };
+            }));
+    }
     async function model(document) {
         const key = document.uri.toString();
         let result = models.get(key);
         if (!result) {
             const requestedGeneration = generation;
             // Missing optional files must not disable the built-in language features.
-            const extra = await safe(() => customTypes(document), []);
+            const [extra, scripts] = await Promise.all([
+                safe(() => customTypes(document), []),
+                safe(() => siblingScripts(document), []),
+            ]);
             if (disposed || !eligible(document)) return undefined;
             if (requestedGeneration !== generation) return model(document);
             result = models.get(key);
             if (!result) {
-                result = new ScriptService(key, document.getText(), { strict: configuration(document).get('strict', true) }, extra);
+                result = new ScriptService(key, document.getText(), { strict: configuration(document).get('strict', true) }, extra, scripts);
+                result.directoryKey = directoryKey(document.uri);
                 models.set(key, result);
             }
         }
@@ -106,6 +124,28 @@ function activate(context) {
         const key = document.uri.toString();
         clearTimeout(timers.get(key));
         timers.set(key, setTimeout(() => { timers.delete(key); safe(() => validate(document)); }, 180));
+    }
+    function documentsInDirectory(uri) {
+        const key = directoryKey(uri);
+        return vscode.workspace.textDocuments.filter(document => eligible(document) && directoryKey(document.uri) === key);
+    }
+    function invalidateDirectory(uri) {
+        generation++;
+        const key = directoryKey(uri);
+        for (const [modelKey, service] of models) {
+            if (service.directoryKey !== key) continue;
+            service.dispose();
+            models.delete(modelKey);
+        }
+        for (const document of documentsInDirectory(uri)) schedule(document);
+    }
+    function updateDirectory(document) {
+        generation++;
+        const key = directoryKey(document.uri);
+        for (const service of models.values()) {
+            if (service.directoryKey === key) service.updateFile(document.uri.toString(), document.getText());
+        }
+        for (const sibling of documentsInDirectory(document.uri)) schedule(sibling);
     }
     function reset() {
         generation++;
@@ -243,18 +283,24 @@ function activate(context) {
             }).filter(Boolean) : [];
         }, []),
     }));
-    context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(document => { if (eligible(document)) schedule(document); else if (document.uri.path.endsWith('.d.ts')) reset(); }));
-    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => { if (eligible(event.document)) schedule(event.document); else if (event.document.uri.path.endsWith('.d.ts')) reset(); }));
+    context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(document => { if (eligible(document)) invalidateDirectory(document.uri); else if (document.uri.path.endsWith('.d.ts')) reset(); }));
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => { if (eligible(event.document)) updateDirectory(event.document); else if (event.document.uri.path.endsWith('.d.ts')) reset(); }));
     context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(document => {
         const key = document.uri.toString();
         clearTimeout(timers.get(key)); timers.delete(key);
         models.get(key)?.dispose(); models.delete(key);
         diagnostics.delete(document.uri);
         if (document.uri.path.endsWith('.d.ts')) reset();
+        else if (document.languageId === 'escript') invalidateDirectory(document.uri);
     }));
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('escript')) reset(); }));
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.d.ts');
     context.subscriptions.push(watcher, watcher.onDidChange(reset), watcher.onDidCreate(reset), watcher.onDidDelete(reset));
+    const scriptWatcher = vscode.workspace.createFileSystemWatcher('**/*.escript');
+    context.subscriptions.push(scriptWatcher,
+        scriptWatcher.onDidChange(invalidateDirectory),
+        scriptWatcher.onDidCreate(invalidateDirectory),
+        scriptWatcher.onDidDelete(invalidateDirectory));
     context.subscriptions.push(vscode.commands.registerCommand('escript.restartLanguageService', () => {
         reset(); output.appendLine('Language service restarted.');
     }));
@@ -266,7 +312,7 @@ function activate(context) {
         models.clear(); declarations.clear();
     } });
     for (const document of vscode.workspace.textDocuments) schedule(document);
-    output.appendLine(`Siebel eScript activated; bundled TypeScript ${ts.version}, static with-scopes, server/ST types.`);
+    output.appendLine(`Siebel eScript activated; bundled TypeScript ${ts.version}, folder-scoped scripts, static with-scopes, server/ST types.`);
     return { engineVersion: ts.version };
 }
 module.exports = { activate };

@@ -1,3 +1,10 @@
+# Unreleased
+
+
+# 0.9.3
+
+- Analyze `.escript` files in the same directory together so global functions, objects, navigation, references, and diagnostics work across files.
+
 # 0.9.1
 
 - Add a dedicated Marketplace icon and a matching transparent eScript file icon.
