@@ -1,0 +1,111 @@
+{
+  "name": "siebel-escript",
+  "displayName": "Siebel eScript (ST)",
+  "description": "Siebel eScript language support with typed with-scopes, IntelliSense, documentation and diagnostics.",
+  "version": "0.1.1",
+  "publisher": "siebel-escript-local",
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "Siebel",
+    "eScript",
+    "ST",
+    "with"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onLanguage:escript"
+  ],
+  "main": "./src/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "escript",
+        "aliases": [
+          "Siebel eScript",
+          "escript"
+        ],
+        "extensions": [
+          ".escript"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/escript-light.svg",
+          "dark": "./icons/escript-dark.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "escript",
+        "scopeName": "source.escript",
+        "path": "./syntaxes/escript.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "escript.restartLanguageService",
+        "title": "Siebel eScript: Restart Language Service"
+      }
+    ],
+    "configuration": {
+      "title": "Siebel eScript",
+      "properties": {
+        "escript.strict": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Enable strict TypeScript checks for eScript analysis. This does not enable JavaScript runtime strict mode."
+        },
+        "escript.maxProblems": {
+          "type": "number",
+          "default": 100,
+          "minimum": 1,
+          "maximum": 1000,
+          "scope": "resource",
+          "description": "Maximum number of diagnostics per file."
+        },
+        "escript.typeDefinitionFiles": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource",
+          "description": "Additional .d.ts files, relative to the workspace folder. Built-in Siebel and runtime types are loaded automatically. Do not add the original index.d.ts again."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[escript]": {
+        "editor.quickSuggestions": {
+          "other": "on",
+          "comments": "off",
+          "strings": "off"
+        },
+        "editor.suggestOnTriggerCharacters": true,
+        "editor.parameterHints.enabled": true
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "package": "vsce package --no-dependencies --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^4.0.0"
+  }
+}

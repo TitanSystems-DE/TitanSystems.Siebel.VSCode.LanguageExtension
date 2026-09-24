@@ -1,0 +1,8 @@
+{
+  "name": "Siebel eScript",
+  "scopeName": "source.escript",
+  "patterns": [
+    {"name": "storage.type.primitive.escript", "match": "\\b(bool|chars|float)\\b"},
+    {"include": "source.ts"}
+  ]
+}

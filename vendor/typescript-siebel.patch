@@ -1,0 +1,182 @@
+diff --git a/src/compiler/binder.ts b/src/compiler/binder.ts
+index 5980b11..c863535 100644
+--- a/src/compiler/binder.ts
++++ b/src/compiler/binder.ts
+@@ -2728,8 +2728,8 @@ function createBinder(): (file: SourceFile, options: CompilerOptions) => void {
+     }
+ 
+     function checkStrictModeWithStatement(node: WithStatement) {
+-        // Grammar checking for withStatement
+-        if (inStrictMode) {
++        // Siebel mode uses TypeScript syntax with eScript with-scopes.
++        if (inStrictMode && !options.siebelEScript) {
+             errorOnFirstToken(node, Diagnostics.with_statements_are_not_allowed_in_strict_mode);
+         }
+     }
+diff --git a/src/compiler/checker.ts b/src/compiler/checker.ts
+index 0567712..c8e8d4a 100644
+--- a/src/compiler/checker.ts
++++ b/src/compiler/checker.ts
+@@ -1586,6 +1586,11 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+         getRequiresScopeChangeCache,
+         setRequiresScopeChangeCache,
+         lookup: getSymbol,
++        resolveWithProperty(statement, name, meaning) {
++            if (!compilerOptions.siebelEScript) return undefined;
++            const property = getPropertyOfType(getTypeOfExpression(statement.expression), name);
++            return property && property.flags & meaning ? property : undefined;
++        },
+         onPropertyWithInvalidInitializer: checkAndReportErrorForInvalidInitializer,
+         onFailedToResolveSymbol,
+         onSuccessfullyResolvedSymbol,
+@@ -28756,7 +28761,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+     // parameter symbols with declarations that have explicit type annotations. Such references are
+     // resolvable with no possibility of triggering circularities in control flow analysis.
+     function getTypeOfDottedName(node: Expression, diagnostic: Diagnostic | undefined): Type | undefined {
+-        if (!(node.flags & NodeFlags.InWithStatement)) {
++        if (!(node.flags & NodeFlags.InWithStatement) || compilerOptions.siebelEScript) {
+             switch (node.kind) {
+                 case SyntaxKind.Identifier:
+                     const symbol = getExportSymbolOfValueSymbolIfExported(getResolvedSymbol(node as Identifier));
+@@ -32470,7 +32475,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+     // exists. Otherwise, it is the type of the string index signature in T, if one exists.
+     function getContextualTypeForObjectLiteralMethod(node: MethodDeclaration, contextFlags: ContextFlags | undefined): Type | undefined {
+         Debug.assert(isObjectLiteralMethod(node));
+-        if (node.flags & NodeFlags.InWithStatement) {
++        if (node.flags & NodeFlags.InWithStatement && !compilerOptions.siebelEScript) {
+             // We cannot answer semantic questions within a with block, do not proceed any further
+             return undefined;
+         }
+@@ -32779,7 +32784,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+      * @returns the contextual type of an expression.
+      */
+     function getContextualType(node: Expression, contextFlags: ContextFlags | undefined): Type | undefined {
+-        if (node.flags & NodeFlags.InWithStatement) {
++        if (node.flags & NodeFlags.InWithStatement && !compilerOptions.siebelEScript) {
+             // We cannot answer semantic questions within a with block, do not proceed any further
+             return undefined;
+         }
+@@ -46613,9 +46618,12 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+         }
+ 
+         checkExpression(node.expression);
++        if (compilerOptions.siebelEScript) {
++            checkSourceElement(node.statement);
++        }
+ 
+         const sourceFile = getSourceFileOfNode(node);
+-        if (!hasParseDiagnostics(sourceFile)) {
++        if (!compilerOptions.siebelEScript && !hasParseDiagnostics(sourceFile)) {
+             const start = getSpanOfTokenAtPosition(sourceFile, node.pos).start;
+             const end = node.statement.pos;
+             grammarErrorAtPos(sourceFile, start, end - start, Diagnostics.The_with_statement_is_not_supported_All_symbols_in_a_with_block_will_have_type_any);
+@@ -49765,8 +49773,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+     // Language service support
+ 
+     function getSymbolsInScope(location: Node, meaning: SymbolFlags): Symbol[] {
+-        if (location.flags & NodeFlags.InWithStatement) {
+-            // We cannot answer semantic questions within a with block, do not proceed any further
++        if (location.flags & NodeFlags.InWithStatement && !compilerOptions.siebelEScript) {
+             return [];
+         }
+ 
+@@ -49784,6 +49791,12 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+                     copySymbols(location.locals, meaning);
+                 }
+ 
++                if (location.kind === SyntaxKind.WithStatement && compilerOptions.siebelEScript && meaning & SymbolFlags.Value) {
++                    for (const property of getPropertiesOfType(getTypeOfExpression((location as WithStatement).expression))) {
++                        copySymbol(property, meaning);
++                    }
++                }
++
+                 switch (location.kind) {
+                     case SyntaxKind.SourceFile:
+                         if (!isExternalModule(location as SourceFile)) break;
+@@ -50194,8 +50207,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+         const { parent } = node;
+         const grandParent = parent.parent;
+ 
+-        if (node.flags & NodeFlags.InWithStatement) {
+-            // We cannot answer semantic questions within a with block, do not proceed any further
++        if (node.flags & NodeFlags.InWithStatement && !compilerOptions.siebelEScript) {
+             return undefined;
+         }
+ 
+@@ -50384,8 +50396,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+             return errorType;
+         }
+ 
+-        if (node.flags & NodeFlags.InWithStatement) {
+-            // We cannot answer semantic questions within a with block, do not proceed any further
++        if (node.flags & NodeFlags.InWithStatement && !compilerOptions.siebelEScript) {
+             return errorType;
+         }
+ 
+diff --git a/src/compiler/commandLineParser.ts b/src/compiler/commandLineParser.ts
+index c17cc4e..d522897 100644
+--- a/src/compiler/commandLineParser.ts
++++ b/src/compiler/commandLineParser.ts
+@@ -715,6 +715,14 @@ const commandOptionsWithoutBuild: CommandLineOption[] = [
+         description: Diagnostics.Specify_a_set_of_bundled_library_declaration_files_that_describe_the_target_runtime_environment,
+         transpileOptionValue: undefined,
+     },
++    {
++        name: "siebelEScript",
++        type: "boolean",
++        affectsSemanticDiagnostics: true,
++        affectsBuildInfo: true,
++        affectsSourceFile: true,
++        defaultValueDescription: false,
++    },
+     {
+         name: "allowJs",
+         type: "boolean",
+diff --git a/src/compiler/types.ts b/src/compiler/types.ts
+index 4d8d22a..6d02692 100644
+--- a/src/compiler/types.ts
++++ b/src/compiler/types.ts
+@@ -7403,6 +7403,8 @@ export type CompilerOptionsValue = string | number | boolean | (string | number)
+ export interface CompilerOptions {
+     /** @internal */ all?: boolean;
+     allowImportingTsExtensions?: boolean;
++    /** Enable static with-scopes for Siebel eScript analysis. */
++    siebelEScript?: boolean;
+     allowJs?: boolean;
+     /** @internal */ allowNonTsExtensions?: boolean;
+     allowArbitraryExtensions?: boolean;
+diff --git a/src/compiler/utilities.ts b/src/compiler/utilities.ts
+index 38425f9..527d1fe 100644
+--- a/src/compiler/utilities.ts
++++ b/src/compiler/utilities.ts
+@@ -11470,6 +11470,7 @@ export interface NameResolverOptions {
+     argumentsSymbol: Symbol;
+     requireSymbol: Symbol;
+     lookup: (symbols: SymbolTable, name: __String, meaning: SymbolFlags) => Symbol | undefined;
++    resolveWithProperty?: (statement: WithStatement, name: __String, meaning: SymbolFlags) => Symbol | undefined;
+     setRequiresScopeChangeCache: undefined | ((node: FunctionLikeDeclaration, value: boolean) => void);
+     getRequiresScopeChangeCache: undefined | ((node: FunctionLikeDeclaration) => boolean | undefined);
+     onPropertyWithInvalidInitializer?: (location: Node | undefined, name: __String, declaration: PropertyDeclaration, result: Symbol | undefined) => boolean;
+@@ -11496,6 +11497,7 @@ export function createNameResolver({
+     getSymbolOfDeclaration,
+     globals,
+     lookup,
++    resolveWithProperty = returnUndefined,
+     setRequiresScopeChangeCache = returnUndefined,
+     getRequiresScopeChangeCache = returnUndefined,
+     onPropertyWithInvalidInitializer = returnFalse,
+@@ -11596,6 +11598,14 @@ export function createNameResolver({
+             }
+             withinDeferredContext = withinDeferredContext || getIsDeferredContext(location, lastLocation);
+             switch (location.kind) {
++                case SyntaxKind.WithStatement:
++                    // The expression is evaluated outside its own with environment.
++                    if (lastLocation === (location as WithStatement).statement && (meaning & SymbolFlags.Value)) {
++                        if (result = resolveWithProperty(location as WithStatement, name, meaning)) {
++                            break loop;
++                        }
++                    }
++                    break;
+                 case SyntaxKind.SourceFile:
+                     if (!isExternalOrCommonJsModule(location as SourceFile)) break;
+                     // falls through
