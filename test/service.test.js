@@ -55,6 +55,23 @@ test('separate eScript objects cannot accidentally share global event declaratio
  assert.equal(one.diagnostics().length,0);
  assert(two.diagnostics().some(d=>d.code===2304));one.dispose();two.dispose();
 });
+test('scripts in the same directory share functions, objects and navigation', () => {
+ const helperUri='file:///workspace/Shared.escript';
+ const main='var value: chars = SharedMethod();\nSharedObject.Run();';
+ const s=new ScriptService('file:///workspace/Main.escript',main,{},[],[{
+  uri:helperUri,
+  text:'function SharedMethod(): chars { return "ok"; }\nvar SharedObject = { Run: function(): void {} };',
+ }]);
+ assert.deepEqual(s.diagnostics(),[]);
+ const method=s.definitions(main.indexOf('SharedMethod')+3)[0];
+ const object=s.definitions(main.indexOf('SharedObject')+3)[0];
+ assert.equal(s.targetUri(method.fileName),helperUri);
+ assert.equal(s.targetUri(object.fileName),helperUri);
+ assert(s.references(main.indexOf('SharedMethod')+3).some(r=>s.targetUri(r.fileName)===helperUri));
+ s.updateFile(helperUri,'function RenamedMethod(): chars { return "ok"; }');
+ assert(s.diagnostics().some(d=>d.code===2304));
+ s.dispose();
+});
 test('additional declarations provide completions and definition URI mapping', () => {
  const uri='file:///workspace/types/custom.d.ts';
  const {s,offset}=fixture('Custom/*cursor*/Function();',[{uri,text:'/** Customer-specific function. */ declare function CustomFunction(): string;'}]);
