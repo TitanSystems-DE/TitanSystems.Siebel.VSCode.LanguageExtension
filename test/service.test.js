@@ -5,9 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { ScriptService, ts } = require('../src/service');
 const prefix = 'var bc: BusComp = TheApplication().GetBusObject("Account").GetBusComp("Account");\n';
-function fixture(marked, extras) {
+function fixture(marked, extras, scripts) {
  const offset = marked.indexOf('/*cursor*/');
- const s = new ScriptService('file:///workspace/Account.escript', marked.replace('/*cursor*/',''), {}, extras);
+ const s = new ScriptService('file:///workspace/Account.escript', marked.replace('/*cursor*/',''), {}, extras, scripts);
  return { s, offset };
 }
 test('real eScript example and built-in declarations compile without standard libraries', () => {
@@ -22,6 +22,9 @@ test('completions and completion details inside typed with', () => {
  for(const name of ['GetFieldValue','ExecuteQuery','SetSearchSpec']) assert(entries.some(e=>e.name===name),name);
  const detail=s.completionDetails(offset,entries.find(e=>e.name==='GetFieldValue'));
  assert(ts.displayPartsToString(detail.documentation).includes('current record'));
+ const signature=ts.displayPartsToString(detail.displayParts);
+ assert(signature.includes('chars'));
+ assert(!signature.includes('SblStr'));
  s.dispose();
 });
 test('hover, definition, references and signature help preserve source coordinates', () => {
@@ -49,8 +52,53 @@ test('standard browser, Node and modern JS globals remain excluded', () => {
  assert.equal(s.diagnostics().length,5);
  s.dispose();
 });
+test('type completions expose Siebel types but hide TypeScript-only and compiler support types', () => {
+ const {s}=fixture('var value: /*cursor*/');
+ const names=new Set(s.completions(s.text.length).entries.map(entry=>entry.name));
+ for(const name of ['chars','float','bool','Object','String','Number','Boolean','Array','Date','RegExp','BusComp']) assert(names.has(name),name);
+ for(const name of ['string','number','boolean','any','unknown','never','bigint','symbol','object','void','ReadonlyArray','StringConstructor','SblStrIn','globalThis']) assert(!names.has(name),name);
+ s.dispose();
+});
+test('TypeScript-only type annotations produce Siebel compatibility diagnostics', () => {
+ const {s}=fixture('var text: string; var count: number; var flag: boolean; var loose: any; var values: chars[]; var choice: chars | float; function noResult(): void {}');
+ const diagnostics=s.diagnostics().filter(d=>d.code===95001);
+ assert.equal(diagnostics.length,7);
+ assert(diagnostics.some(d=>String(d.messageText).includes("'chars'")));
+ assert(diagnostics.some(d=>String(d.messageText).includes("'float'")));
+ assert(diagnostics.some(d=>String(d.messageText).includes("'bool'")));
+ assert(diagnostics.some(d=>String(d.messageText).includes('typeless')));
+ s.dispose();
+});
+test('null can be assigned to every strongly typed eScript value', () => {
+ const {s}=fixture('var bc: BusComp = null; bc = null; function accept(value: BusComp): BusComp { return null; } accept(null);');
+ assert.deepEqual(s.diagnostics(),[]);
+ s.update('var bc: BusComp = undefined;');
+ assert(s.diagnostics().some(d=>d.code===2322));
+ s.dispose();
+});
+test('function header comments assign a local this type', () => {
+ for(const directive of ['// @this: Service','// @this = Service','// this: Service']) {
+  const {s,offset}=fixture(`${directive}\nfunction Test() { this.Inv/*cursor*/okeMethod("Run"); }`);
+  const entries=s.completions(offset).entries;
+  assert(entries.some(e=>e.name==='InvokeMethod'),directive);
+  assert(!entries.some(e=>e.name==='GetBusObject'),directive);
+  assert.deepEqual(s.diagnostics(),[]);
+  s.dispose();
+ }
+});
+test('comment-declared this includes top-level members from sibling scripts', () => {
+ const helperUri='file:///workspace/Shared.escript';
+ const source='var LocalProperty: chars = "local";\n// @this: Service\nfunction Test() { this.Shared/*cursor*/Method("ok"); this.SharedProperty; this.LocalProperty; }';
+ const {s,offset}=fixture(source,[],[{
+  uri:helperUri,
+  text:'function SharedMethod(value: chars): chars { return value; }\nvar SharedProperty: chars = "ready";',
+ }]);
+ const names=new Set(s.completions(offset).entries.map(entry=>entry.name));
+ for(const name of ['InvokeMethod','LocalProperty','SharedMethod','SharedProperty']) assert(names.has(name),name);
+ s.dispose();
+});
 test('separate eScript objects cannot accidentally share global event declarations', () => {
- const one=new ScriptService('file:///one.escript','var privateToObject: string = "one";');
+ const one=new ScriptService('file:///one.escript','var privateToObject: chars = "one";');
  const two=new ScriptService('file:///two.escript','privateToObject;');
  assert.equal(one.diagnostics().length,0);
  assert(two.diagnostics().some(d=>d.code===2304));one.dispose();two.dispose();

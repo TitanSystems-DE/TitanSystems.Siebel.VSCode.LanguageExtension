@@ -2,7 +2,7 @@
   "name": "siebel-escript",
   "displayName": "Siebel eScript (ST)",
   "description": "Siebel eScript language support with typed with-scopes, IntelliSense, documentation and diagnostics.",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "publisher": "titansystems-de",
   "repository": {
     "type": "git",
@@ -76,7 +76,7 @@
           "type": "boolean",
           "default": true,
           "scope": "resource",
-          "description": "Enable strict TypeScript checks for eScript analysis. This does not enable JavaScript runtime strict mode."
+          "description": "Enable strict Siebel eScript type checks. This does not enable JavaScript runtime strict mode."
         },
         "escript.maxProblems": {
           "type": "number",

@@ -9,6 +9,77 @@ const builtins = new Map(['runtime.d.ts', 'siebel.d.ts'].map(name => {
     const file = path.posix.join(typesRoot, name);
     return [file, fs.readFileSync(file, 'utf8')];
 }));
+const hiddenCompletionNames = new Set([
+    // TypeScript-only type keywords.
+    'any', 'asserts', 'bigint', 'boolean', 'infer', 'keyof', 'never', 'number', 'object',
+    'readonly', 'string', 'symbol', 'unique', 'unknown',
+    // Compiler support declarations that are not Siebel eScript API surface.
+    'ArrayConstructor', 'BooleanConstructor', 'CallableFunction', 'FunctionConstructor',
+    'globalThis', 'IArguments', 'NewableFunction', 'NumberConstructor', 'ObjectConstructor',
+    'ReadonlyArray', 'RegExpConstructor', 'RegExpExecArray', 'RegExpMatchArray', 'StringConstructor',
+    'SblBoolIn', 'SblBoolOut', 'SblNumIn', 'SblNumOut', 'SblStrIn', 'SblStrOut',
+]);
+const incompatibleTypeKeywords = new Map([
+    [ts.SyntaxKind.StringKeyword, ['string', "Use the Siebel eScript primitive type 'chars' instead of the TypeScript type 'string'."]],
+    [ts.SyntaxKind.NumberKeyword, ['number', "Use the Siebel eScript primitive type 'float' instead of the TypeScript type 'number'."]],
+    [ts.SyntaxKind.BooleanKeyword, ['boolean', "Use the Siebel eScript primitive type 'bool' instead of the TypeScript type 'boolean'."]],
+    [ts.SyntaxKind.ObjectKeyword, ['object', "Use the Siebel eScript object type 'Object' instead of the TypeScript type 'object'."]],
+    [ts.SyntaxKind.AnyKeyword, ['any', "Siebel eScript has no 'any' type. Omit the type annotation for a typeless variable."]],
+    [ts.SyntaxKind.UnknownKeyword, ['unknown', "The TypeScript type 'unknown' is not supported by Siebel eScript."]],
+    [ts.SyntaxKind.NeverKeyword, ['never', "The TypeScript type 'never' is not supported by Siebel eScript."]],
+    [ts.SyntaxKind.BigIntKeyword, ['bigint', "The TypeScript type 'bigint' is not supported by Siebel eScript."]],
+    [ts.SyntaxKind.SymbolKeyword, ['symbol', "The TypeScript type 'symbol' is not supported by Siebel eScript."]],
+    [ts.SyntaxKind.VoidKeyword, ['void', "Siebel eScript has no 'void' data type. Omit the return type when a function returns no value."]],
+]);
+const incompatibleTypeSyntax = new Set([
+    ts.SyntaxKind.ArrayType, ts.SyntaxKind.ConditionalType, ts.SyntaxKind.ConstructorType,
+    ts.SyntaxKind.FunctionType, ts.SyntaxKind.ImportType, ts.SyntaxKind.IndexedAccessType,
+    ts.SyntaxKind.InferType, ts.SyntaxKind.IntersectionType, ts.SyntaxKind.LiteralType,
+    ts.SyntaxKind.MappedType, ts.SyntaxKind.NamedTupleMember, ts.SyntaxKind.OptionalType,
+    ts.SyntaxKind.RestType, ts.SyntaxKind.TemplateLiteralType, ts.SyntaxKind.TupleType,
+    ts.SyntaxKind.TypeLiteral, ts.SyntaxKind.TypeOperator, ts.SyntaxKind.TypePredicate,
+    ts.SyntaxKind.TypeQuery, ts.SyntaxKind.UnionType,
+]);
+
+function compatibilityDiagnostics(sourceFile) {
+    const result = [];
+    const report = (node, messageText) => result.push({
+        file: sourceFile, start: node.getStart(sourceFile), length: node.getWidth(sourceFile),
+        category: ts.DiagnosticCategory.Error, code: 95001, messageText,
+    });
+    function visit(node) {
+        const keyword = incompatibleTypeKeywords.get(node.kind);
+        if (keyword) {
+            report(node, keyword[1]);
+            return;
+        }
+        if (incompatibleTypeSyntax.has(node.kind)) {
+            report(node, 'This TypeScript type syntax is not supported by Siebel eScript.');
+            return;
+        }
+        if (ts.isTypeReferenceNode(node) && node.typeArguments?.length) {
+            report(node, 'Generic type arguments are not supported by Siebel eScript.');
+            return;
+        }
+        if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
+            report(node, 'TypeScript interface and type declarations are not supported in Siebel eScript files. Add shared declarations to a configured .d.ts file.');
+            return;
+        }
+        if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression?.(node)) {
+            report(node, 'TypeScript type assertions are not supported by Siebel eScript.');
+            return;
+        }
+        ts.forEachChild(node, visit);
+    }
+    visit(sourceFile);
+    return result;
+}
+
+function isAllowedNullAssignment(diagnostic) {
+    if (![2322, 2345, 2412].includes(diagnostic.code)) return false;
+    const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+    return /type 'null' is not assignable to (?:parameter of )?type/i.test(message);
+}
 
 const virtualFile = (uri, extension) => path.posix.join(
     typesRoot, '__virtual__', crypto.createHash('sha256').update(uri).digest('hex') + extension,
@@ -79,14 +150,29 @@ class ScriptService {
     }
     dispose() { this.languageService.dispose(); }
     diagnostics() {
-        return [...this.languageService.getSyntacticDiagnostics(this.file), ...this.languageService.getSemanticDiagnostics(this.file)];
+        const sourceFile = this.languageService.getProgram()?.getSourceFile(this.file);
+        const hasThisDirective = /^\s*\/\/\s*(?:@this\s*[:=]|this\s*:)[ \t]*[A-Za-z_$][\w$]*\s*$/m.test(this.text);
+        this.options.siebelThisComments = false;
+        try {
+            return [...this.languageService.getSyntacticDiagnostics(this.file),
+                ...this.languageService.getSemanticDiagnostics(this.file).filter(diagnostic =>
+                    !isAllowedNullAssignment(diagnostic) && !(hasThisDirective && diagnostic.code === 2683)),
+                ...(sourceFile ? compatibilityDiagnostics(sourceFile) : [])];
+        } finally {
+            this.options.siebelThisComments = true;
+        }
     }
     completions(position, options = {}) {
-        return this.languageService.getCompletionsAtPosition(this.file, position, {
+        const result = this.languageService.getCompletionsAtPosition(this.file, position, {
             includeCompletionsForModuleExports: false,
             includeCompletionsWithInsertText: true,
             ...options,
         });
+        if (result) {
+            const typePosition = /:\s*$/.test(this.text.slice(0, position));
+            result.entries = result.entries.filter(entry => !hiddenCompletionNames.has(entry.name) && !(typePosition && entry.name === 'void'));
+        }
+        return result;
     }
     completionDetails(position, entry) {
         return this.languageService.getCompletionEntryDetails(this.file, position, entry.name, {}, entry.source, {}, entry.data);

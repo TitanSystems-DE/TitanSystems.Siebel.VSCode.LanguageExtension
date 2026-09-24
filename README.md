@@ -1,32 +1,37 @@
 # Siebel eScript (ST)
 
-Language support for **Siebel eScript** in Visual Studio Code, with IntelliSense, type-aware `with` scopes, inline documentation, navigation, formatting, and live diagnostics.
+Language support for **Siebel eScript** in Visual Studio Code. The extension adds Siebel-aware IntelliSense, diagnostics, navigation, formatting, and support for scripts split across multiple files.
 
-> **Pre-release:** This is the first public preview. Some diagnostics, APIs, and type definitions may still be incomplete or change before the stable release. Feedback and bug reports are welcome.
+> **Pre-release:** This extension is under active development. Type definitions and diagnostics may still change before the first stable release.
 
-## Highlights
+## Features
 
-- Syntax highlighting for `.escript` files
-- IntelliSense and code completion for Siebel APIs
-- Cross-file functions and objects within the same directory
-- Type-aware completions inside `with` blocks
-- Hover documentation and completion details from JSDoc
-- Signature help and parameter information
+- Syntax highlighting and a dedicated icon for `.escript` files
+- Siebel API completion with signatures and inline documentation
+- Type-aware completion inside `with` blocks
+- Shared functions, variables, and objects across `.escript` files in the same directory
+- Optional `this` type declarations through function header comments
+- Hover information, signature help, Go to Definition, and Find All References
 - Live syntax and type diagnostics
-- Go to Definition and Find All References
-- Document formatting
-- Document outline and code folding
-- Built-in Siebel and ST runtime type definitions
-- Support for additional workspace-specific `.d.ts` files
-- Dedicated `.escript` file icon for light and dark themes
+- Document formatting, outline, and code folding
+- Built-in Siebel and ST runtime declarations
+- Support for project-specific `.d.ts` declaration files
+- Native eScript types such as `chars`, `float`, and `bool`
 
-## Quick Start
+No Node.js installation, `tsconfig.json`, or workspace TypeScript installation is required.
+
+## Getting Started
 
 1. Install **Siebel eScript (ST)** from the Visual Studio Marketplace.
-2. Open a file with the `.escript` extension.
-3. Start typing or press `Ctrl+Space` to display suggestions.
+2. Open a folder containing your Siebel scripts.
+3. Open or create a file with the `.escript` extension.
+4. Start typing or press `Ctrl+Space` to open IntelliSense.
 
-The extension includes its own language service and type definitions. Node.js, a `tsconfig.json`, and a workspace TypeScript installation are not required.
+If VS Code selects the wrong language mode, click the language indicator in the status bar and choose **Siebel eScript**.
+
+## Writing Typed eScript
+
+Use Siebel eScript type names in source files:
 
 ```typescript
 function Service_PreInvokeMethod(
@@ -34,8 +39,6 @@ function Service_PreInvokeMethod(
     Inputs: PropertySet,
     Outputs: PropertySet
 ): Number {
-    if (MethodName != "FindAccount") return ContinueOperation;
-
     var bo: BusObject = TheApplication().GetBusObject("Account");
     var bc: BusComp = bo.GetBusComp("Account");
 
@@ -43,7 +46,6 @@ function Service_PreInvokeMethod(
         ActivateField("Name");
         SetViewMode(AllView);
         ClearToQuery();
-        SetSearchSpec("Name", Inputs.GetProperty("Name"));
         ExecuteQuery(ForwardOnly);
 
         if (FirstRecord()) {
@@ -55,7 +57,79 @@ function Service_PreInvokeMethod(
 }
 ```
 
-Inside `with (bc)`, completion, hover, signature help, and diagnostics use the type of `bc`. This makes Siebel object scripts easier to explore and helps catch invalid method calls while editing.
+Inside `with (bc)`, suggestions are based on `BusComp`. Hover, parameter information, and diagnostics use the same type information.
+
+### Supported types
+
+- Primitive types: `chars`, `float`, and `bool`
+- Runtime types: `Object`, `String`, `Number`, `Boolean`, `Array`, `Function`, `Date`, and `RegExp`
+- Siebel types: `Application`, `BusObject`, `BusComp`, `Service`, `PropertySet`, and others
+
+TypeScript-only types and constructs are not valid eScript. Use `chars` instead of `string`, `float` instead of `number`, and `bool` instead of `boolean`. For an untyped variable, omit its type instead of writing `any`.
+
+`null` can be assigned to typed variables, passed to typed parameters, and returned from typed functions without adding a nullable type annotation.
+
+## Working with Multiple Files
+
+All `.escript` files in the same directory form one script context. Top-level functions, variables, and objects can be used from any sibling file.
+
+For example, `Shared.escript` can define:
+
+```typescript
+var QueueName: chars = "ReceiveQueue";
+
+function CreateMessage(): PropertySet {
+    return TheApplication().NewPropertySet();
+}
+```
+
+Another file in the same directory can use both declarations directly:
+
+```typescript
+var message: PropertySet = CreateMessage();
+message.SetProperty("Queue", QueueName);
+```
+
+Completion, navigation, references, and diagnostics work across these sibling files. Subdirectories are separate contexts. Duplicate top-level declarations in the same directory are reported as conflicts.
+
+## Declaring the Type of `this`
+
+Siebel often supplies the value of `this` at runtime, so its type cannot always be inferred from the source. Add a comment immediately above a function to declare it:
+
+```typescript
+// @this: Service
+function Receive(Inputs: PropertySet, Outputs: PropertySet) {
+    this.InvokeMethod("Receive", Inputs, Outputs);
+}
+```
+
+The preferred syntax is `// @this: Type`. These alternatives are also supported:
+
+```typescript
+// @this = Service
+// this: Service
+```
+
+The declaration applies only to the function directly below the comment. IntelliSense for `this` combines:
+
+- Members of the declared type, such as methods from `Service`
+- Top-level functions from the current file and all sibling `.escript` files
+- Top-level variables and objects from the current file and all sibling `.escript` files
+
+Example:
+
+```typescript
+var QueueName: chars = "ReceiveQueue";
+
+// @this: Service
+function Receive(Inputs: PropertySet, Outputs: PropertySet) {
+    this.InvokeMethod("Receive", Inputs, Outputs); // Service member
+    this.CreateMessage();                          // Function from a sibling file
+    var queue: chars = this.QueueName;             // Top-level variable
+}
+```
+
+The named type must exist in the built-in declarations or in a configured custom declaration file. Without a header comment, `this` remains intentionally untyped.
 
 ## Configuration
 
@@ -63,11 +137,11 @@ The built-in Siebel and runtime declarations are loaded automatically.
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `escript.strict` | `true` | Enables strict type checking for eScript analysis. This does not enable JavaScript runtime strict mode. |
-| `escript.maxProblems` | `100` | Sets the maximum number of diagnostics reported per file. |
-| `escript.typeDefinitionFiles` | `[]` | Adds workspace-relative `.d.ts` files with project-specific declarations. |
+| `escript.strict` | `true` | Enables strict type checking. This does not enable JavaScript runtime strict mode. |
+| `escript.maxProblems` | `100` | Maximum number of diagnostics shown per file. |
+| `escript.typeDefinitionFiles` | `[]` | Workspace-relative `.d.ts` files containing project-specific declarations. |
 
-Example workspace configuration:
+Example `.vscode/settings.json`:
 
 ```json
 {
@@ -79,46 +153,23 @@ Example workspace configuration:
 }
 ```
 
-Each additional declaration file must be listed explicitly. Imports, triple-slash references, and npm type packages are not resolved automatically. Declaration files provide type information only and are never executed.
+Declaration files must be listed explicitly. Imports, npm type packages, and triple-slash references are not resolved automatically. A `.d.ts` file supplies editor type information and is never executed.
 
-## Commands
+## Command
 
-### Siebel eScript: Restart Language Service
-
-Restarts the language service and reloads the configured type declarations. Use this command if suggestions or diagnostics appear stale after changing your configuration or declaration files.
-
-## Analysis Model
-
-All `.escript` files in the same directory are analyzed together. Global functions, variables, and objects declared in one file can be used from every other `.escript` file on that directory level. Completion, hover, Go to Definition, references, and diagnostics work across these files. Subdirectories form separate analysis contexts.
-
-Because sibling files share a global scope, duplicate global declarations in the same directory are reported as conflicts.
-
-The extension uses a customized TypeScript language service to model Siebel eScript and dynamic `with` scopes. It does not execute scripts, connect to a Siebel server, or deploy repository objects.
-
-## Current Limitations
-
-The bundled runtime profile is intentionally conservative. Browser, Node.js, and modern ECMAScript globals such as `window`, `Promise`, and `Map` are not included unless provided through a custom declaration file.
-
-The following areas are not yet fully modeled:
-
-- Object-dependent implicit `this` contexts
-- Complete ST type-conversion behavior
-- The full set of Clib, Buffer, and BLOB APIs
-- Every TypeScript syntax construct that is unsupported by the Siebel runtime
-
-Static analysis can improve editing confidence, but it is not a replacement for validation and testing in the target Siebel environment.
+Use **Siebel eScript: Restart Language Service** from the Command Palette after changing declaration files or when suggestions appear stale.
 
 ## Troubleshooting
 
 | Problem | Suggested action |
 | --- | --- |
-| No suggestions or diagnostics | Confirm that the language mode is **Siebel eScript**, then run **Siebel eScript: Restart Language Service**. |
-| A custom type file is not loaded | Verify that its path is workspace-relative and listed in `escript.typeDefinitionFiles`. Check **View → Output → Siebel eScript** for details. |
-| Hover text is missing | Documentation is shown only when the corresponding declaration contains JSDoc. |
-| A definition cannot be found | Dynamic members without a named declaration cannot provide a definition target. |
-| The file icon is not displayed | File icon themes control whether language-provided icons are shown. |
+| No suggestions or diagnostics | Confirm that the file uses the **Siebel eScript** language mode, then restart the language service. |
+| Sibling declarations are missing | Make sure the files have the `.escript` extension and are located in exactly the same directory. |
+| `this` members are missing | Place `// @this: Type` immediately above the function and verify that the type name is available. |
+| A custom type is missing | Check the path in `escript.typeDefinitionFiles` and open **View → Output → Siebel eScript** for errors. |
+| The file icon is not visible | The active VS Code file icon theme decides whether language-provided icons are displayed. |
 
-If `*.escript` was previously associated with another language, update the association in your VS Code settings:
+To force the file association, add this to your VS Code settings:
 
 ```json
 {
@@ -128,12 +179,20 @@ If `*.escript` was previously associated with another language, update the assoc
 }
 ```
 
-## Feedback and Issues
+## Current Limitations
 
-This extension is currently in pre-release. Please report bugs, missing Siebel APIs, and unexpected behavior in the [GitHub issue tracker](https://github.com/TitanSystems-DE/TitanSystems.Siebel.VSCode.LanguageExtension/issues).
+- The extension does not connect to a Siebel server, execute scripts, or deploy repository objects.
+- Object-dependent `this` types are not inferred automatically; use `// @this: Type`.
+- Browser, Node.js, and modern ECMAScript globals such as `window`, `Promise`, and `Map` are intentionally excluded.
+- Some Clib, Buffer, BLOB, conversion, and less common Siebel APIs may not yet be fully described.
+- Static analysis complements, but does not replace, validation in the target Siebel environment.
 
-When reporting an issue, include a minimal eScript example, the expected behavior, the actual behavior, and your VS Code version where possible.
+## Feedback
+
+This is a pre-release. Please report missing APIs, unexpected diagnostics, and reproducible bugs in the [GitHub issue tracker](https://github.com/TitanSystems-DE/TitanSystems.Siebel.VSCode.LanguageExtension/issues).
+
+Include a small `.escript` example, the expected result, the actual result, and your VS Code version where possible.
 
 ## License
 
-See the [LICENSE](LICENSE) file for this extension's license. The bundled TypeScript compiler and other third-party components retain their respective licenses and notices.
+See [LICENSE](LICENSE). Bundled third-party components retain their respective licenses and notices.
