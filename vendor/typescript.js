@@ -77075,6 +77075,31 @@ function createTypeChecker(host) {
     }
     return type || anyType;
   }
+  var siebelThisTypes;
+  function getSiebelThisTypeFromComment(container) {
+    if (!compilerOptions.siebelEScript || compilerOptions.siebelThisComments === false || !isFunctionLike(container)) return void 0;
+    const sourceFile = getSourceFileOfNode(container);
+    if (sourceFile.isDeclarationFile) return void 0;
+    const cache = siebelThisTypes || (siebelThisTypes = /* @__PURE__ */ new Map());
+    if (cache.has(container)) return cache.get(container) || void 0;
+    cache.set(container, false);
+    const leadingText = sourceFile.text.slice(container.pos, container.getStart(sourceFile));
+    const match = /(?:^|\r?\n)[ \t]*\/\/[ \t]*(?:@this[ \t]*[:=][ \t]*|this[ \t]*:[ \t]*)([A-Za-z_$][\w$]*)[ \t]*(?:\r?\n)[ \t]*$/.exec(leadingText);
+    if (!match) return void 0;
+    const symbol = globals.get(escapeLeadingUnderscores(match[1]));
+    if (!symbol || !(symbol.flags & 788968 /* Type */)) return void 0;
+    const members = createSymbolTable();
+    globals.forEach((globalSymbol, name) => {
+      if (some(globalSymbol.declarations, (declaration) => !getSourceFileOfNode(declaration).isDeclarationFile)) {
+        members.set(name, globalSymbol);
+      }
+    });
+    const folderScope = createAnonymousType(void 0, members, emptyArray, emptyArray, emptyArray);
+    const declaredType = getTypeWithThisArgument(getDeclaredTypeOfSymbol(symbol));
+    const type = getIntersectionType([declaredType, folderScope]);
+    cache.set(container, type || false);
+    return type;
+  }
   function tryGetThisTypeAt(node, includeGlobalThis = true, container = getThisContainer(
     node,
     /*includeArrowFunctions*/
@@ -77084,7 +77109,7 @@ function createTypeChecker(host) {
   )) {
     const isInJS = isInJSFile(node);
     if (isFunctionLike(container) && (!isInParameterInitializerBeforeContainingFunction(node) || getThisParameter(container))) {
-      let thisType = getThisTypeOfDeclaration(container) || isInJS && getTypeForThisExpressionFromJSDoc(container);
+      let thisType = getThisTypeOfDeclaration(container) || getSiebelThisTypeFromComment(container) || isInJS && getTypeForThisExpressionFromJSDoc(container);
       if (!thisType) {
         const className = getClassNameFromPrototypeMethod(container);
         if (isInJS && className) {
@@ -119296,6 +119321,9 @@ function transformDeclarations(context) {
       const bundle = factory2.createBundle(
         map(node.sourceFiles, (sourceFile) => {
           if (sourceFile.isDeclarationFile) return void 0;
+    const cache = siebelThisTypes || (siebelThisTypes = /* @__PURE__ */ new Map());
+    if (cache.has(container)) return cache.get(container) || void 0;
+    cache.set(container, false);
           currentSourceFile = sourceFile;
           enclosingDeclaration = sourceFile;
           lateMarkedStatements = void 0;

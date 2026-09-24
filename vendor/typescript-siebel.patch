@@ -38,7 +38,42 @@ index 0567712..c8e8d4a 100644
              switch (node.kind) {
                  case SyntaxKind.Identifier:
                      const symbol = getExportSymbolOfValueSymbolIfExported(getResolvedSymbol(node as Identifier));
-@@ -32470,7 +32475,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+@@ -31154,7 +31159,33 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
++    var siebelThisTypes: Map<Node, Type | false> | undefined;
++    function getSiebelThisTypeFromComment(container: Node): Type | undefined {
++        if (!compilerOptions.siebelEScript || compilerOptions.siebelThisComments === false || !isFunctionLike(container)) return undefined;
++        const sourceFile = getSourceFileOfNode(container);
++        if (sourceFile.isDeclarationFile) return undefined;
++        const cache = siebelThisTypes || (siebelThisTypes = new Map());
++        if (cache.has(container)) return cache.get(container) || undefined;
++        cache.set(container, false);
++        const leadingText = sourceFile.text.slice(container.pos, container.getStart(sourceFile));
++        const match = /(?:^|\r?\n)[ \t]*\/\/[ \t]*(?:@this[ \t]*[:=][ \t]*|this[ \t]*:[ \t]*)([A-Za-z_$][\w$]*)[ \t]*(?:\r?\n)[ \t]*$/.exec(leadingText);
++        if (!match) return undefined;
++        const symbol = globals.get(escapeLeadingUnderscores(match[1]));
++        if (!symbol || !(symbol.flags & SymbolFlags.Type)) return undefined;
++        const members = createSymbolTable();
++        globals.forEach((globalSymbol, name) => {
++            if (some(globalSymbol.declarations, declaration => !getSourceFileOfNode(declaration).isDeclarationFile)) {
++                members.set(name, globalSymbol);
++            }
++        });
++        const folderScope = createAnonymousType(undefined, members, emptyArray, emptyArray, emptyArray);
++        const declaredType = getTypeWithThisArgument(getDeclaredTypeOfSymbol(symbol));
++        const type = getIntersectionType([declaredType, folderScope]);
++        cache.set(container, type || false);
++        return type;
++    }
++
+     function tryGetThisTypeAt(node: Node, includeGlobalThis = true, container = getThisContainer(node, /*includeArrowFunctions*/ false, /*includeClassComputedPropertyName*/ false)): Type | undefined {
+         const isInJS = isInJSFile(node);
+         if (isFunctionLike(container) && (!isInJS || isInJSFile(container)) || isClassLike(container) || container.kind === SyntaxKind.SourceFile) {
+-            let thisType = getThisTypeOfDeclaration(container) || isInJS && getTypeForThisExpressionFromJSDoc(container);
++            let thisType = getThisTypeOfDeclaration(container) || getSiebelThisTypeFromComment(container) || isInJS && getTypeForThisExpressionFromJSDoc(container);
+             if (thisType) {
+                 if (isInsideWithStatementBody(node)) {
+                     thisType = getTypeWithThisArgument(thisType);
+@@ -32470,7 +32501,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
      // exists. Otherwise, it is the type of the string index signature in T, if one exists.
      function getContextualTypeForObjectLiteralMethod(node: MethodDeclaration, contextFlags: ContextFlags | undefined): Type | undefined {
          Debug.assert(isObjectLiteralMethod(node));

@@ -10,27 +10,21 @@ declare function EAICreateIntMsgOut(propSet: PropertySet): EAIMsg;
 declare const Clib: Clib;
 declare const SElib: SElib;
 
-declare type SblStrIn = String | string | null | undefined;
-declare type SblStrOut = String & string;
-declare type SblBoolIn = Boolean | boolean | null | undefined;
-declare type SblBoolOut = Boolean & boolean;
-declare type SblNumIn = Number | number | null | undefined;
-declare type SblNumOut = Number & number;
 
 //Siebel eScript specific conversion methods
-declare function defined(value: any): SblBoolOut;
-declare function ToBoolean(value: any): SblBoolOut;
+declare function defined(value: any): (bool & Boolean);
+declare function ToBoolean(value: any): (bool & Boolean);
 declare function ToBuffer(value: any): any;
 declare function ToBytes(value: any): any;
-declare function ToInt32(value: any): SblNumOut;
-declare function ToInteger(value: any): SblNumOut;
-declare function ToNumber(value: any): SblNumOut;
+declare function ToInt32(value: any): (float & Number);
+declare function ToInteger(value: any): (float & Number);
+declare function ToNumber(value: any): (float & Number);
 declare function ToObject(value: any): any;
-declare function ToString(value: any): SblStrOut;
-declare function ToUint16(value: any): SblNumOut;
-declare function ToUint32(value: any): SblNumOut;
-declare function eval(code: SblStrIn): any;
-declare function isNaN(value: any): SblBoolOut;
+declare function ToString(value: any): (chars & String);
+declare function ToUint16(value: any): (float & Number);
+declare function ToUint32(value: any): (float & Number);
+declare function eval(code: (chars | String)): any;
+declare function isNaN(value: any): (bool & Boolean);
 
 //Siebel eScript specific constants
 declare const ContinueOperation = 1;
@@ -58,11 +52,11 @@ interface Application {
   /**
    * Custom Methods not covered
    */
-  [x: string]: any;
+  [x: chars]: any;
   /**
    * Returns the name of the active view.
    */
-  ActiveViewName(): SblStrOut;
+  ActiveViewName(): (chars & String);
   /**
    * Returns the name of the business object that the active view references.
    */
@@ -70,57 +64,57 @@ interface Application {
   /**
    * Returns the currency code that is associated with the division of the user position.
    */
-  CurrencyCode(): SblStrOut;
+  CurrencyCode(): (chars & String);
   /**
    * Creates a new instance of a business object.
    * @param busObjName String variable or literal that contains the name of the business object.
    */
-  GetBusObject(busObjName: SblStrIn): BusObject;
+  GetBusObject(busObjName: (chars | String)): BusObject;
   /**
    * GetProfileAttr returns the value of an attribute in a user profile.
    * @param profAttrName A string indicating the name of the attribute
    */
-  GetProfileAttr(profAttrName: SblStrIn): SblStrOut;
+  GetProfileAttr(profAttrName: (chars | String)): (chars & String);
   /**
    * Locates a business service. If this business service is not already running, then Siebel CRM starts it.
    * @param svcName The name of the business service to start.
    */
-  GetService(svcName: SblStrIn): Service;
+  GetService(svcName: (chars | String)): Service;
   /**
    * Returns the shared global variables.
    * @param shGlobalName String literal or variable that contains the name of the global variable.
    */
-  GetSharedGlobal(shGlobalName: SblStrIn): SblStrOut;
+  GetSharedGlobal(shGlobalName: (chars | String)): (chars & String);
   /**
    * Activates a view.
    * @param viewName The name of the view that the Siebel application must display.
    * @param busObj [Optional] The business object that Siebel CRM uses to display the view. You cannot specify the current active business object. If you do not provide this argument, or if you specify Nothing in this argument, then Siebel CRM activates a new business object in the normal way.
    */
-  GotoView(viewName: SblStrIn, busObj?: BusObject): void;
+  GotoView(viewName: (chars | String), busObj?: BusObject): void;
   /**
    * Calls a method.
    * @param methodName The name of the method.
    * @param args One or more strings that contain arguments for the methodName argument.
    */
   InvokeMethod(
-    methodName: SblStrIn,
-    ...args: SblStrIn[]
-  ): any & SblStrOut;
+    methodName: (chars | String),
+    ...args: (chars | String)[]
+  ): any & (chars & String);
   /**
    * Returns the login ID of the user.
    */
-  LoginId(): SblStrOut;
+  LoginId(): (chars & String);
   /**
    * Returns the login name of the user.
    */
-  LoginName(): SblStrOut;
+  LoginName(): (chars & String);
   /**
     * The LookupMessage method returns the translated string for the specified key, in the current language, from the specified category. The optional arguments are used to format the string if it contains any substitution arguments (%1,%2).
     * @param category Name of the Message Category object, as defined in Siebel Tools, that is the parent of Key value.
     * @param key Name of the Message object, as defined in Siebel Tools, whose text contains the value to be investigated.
     * @param args Optional arguments used to format the error message if it contains any substitution arguments (%1, %2).
     */
-  LookupMessage(category: SblStrIn, key: SblStrIn, ...args: SblStrIn[]): SblStrOut;
+  LookupMessage(category: (chars | String), key: (chars | String), ...args: (chars | String)[]): (chars & String);
   /**
    * Creates a new property set.
    */
@@ -128,56 +122,56 @@ interface Application {
   /**
    * Returns the position ID of the user position.
    */
-  PositionId(): SblStrOut;
+  PositionId(): (chars & String);
   /**
    * Returns the name of the current user position.
    */
-  PositionName(): SblStrOut;
+  PositionName(): (chars & String);
   /**
    * Sends a scripting error message to the browser. To determine the error text, Siebel CRM uses a key to look up the current language.
    * @param key Name of the Message object whose text contains the value that Siebel CRM must format. You can define this value in Siebel Tools.
    * @param subVals If the error message contains a substitution argument, such as %1, then Siebel CRM uses these optional arguments to format the error message.
    */
-  RaiseError(key: SblStrIn, ...subVals: SblStrIn[]): void;
+  RaiseError(key: (chars | String), ...subVals: (chars | String)[]): void;
   /**
    * Sends a scripting error message to the browser.
    * @param message The error text message.
    */
-  RaiseErrorText(message: SblStrIn): void;
+  RaiseErrorText(message: (chars | String)): void;
   /**
    * Sets the active position to a position ID.
    * @param positionId A string that contains the Position Id.
    */
-  SetPositionId(positionId: SblStrIn): SblBoolOut;
+  SetPositionId(positionId: (chars | String)): (bool & Boolean);
   /**
    * Sets the active position to a position name.
    * @param positionName A string that contains the name of the position.
    */
-  SetPositionName(positionName: SblStrIn): SblBoolOut;
+  SetPositionName(positionName: (chars | String)): (bool & Boolean);
   /**
    * Personalization uses this method to set a value for an attribute in a user profile.
    * @param profAttrName A string that contains the name of the attribute.
    * @param profAttrValue The value of the attribute.
    */
-  SetProfileAttr(profAttrName: SblStrIn, profAttrValue: SblStrIn): void;
+  SetProfileAttr(profAttrName: (chars | String), profAttrValue: (chars | String)): void;
   /**
    * Sets a shared global variable.
    * @param shGlobalName String variable or literal that contains the name of the shared global variable that Siebel CRM must set.
    * @param shGlobalValue String variable or literal that contains the value of the shared global variable.
    */
-  SetSharedGlobal(shGlobalName: SblStrIn, shGlobalValue: SblStrIn): void;
+  SetSharedGlobal(shGlobalName: (chars | String), shGlobalValue: (chars | String)): void;
   /**
    * Appends a message to the trace file.
    * @param message String variable or literal that contains message text that Siebel CRM appends to the trace file.
    */
-  Trace(message: SblStrIn): void;
+  Trace(message: (chars | String)): void;
   /**
    * Turns on tracing.
    * @param fName Output filename for trace messages. If you do not use this argument, then Siebel CRM logs tracing information to the Object Manager log file.
    * @param type The type of tracing to start. You can use the following values: Allocation / SQL
    * @param selection Identifies the Siebel objects that Siebel CRM must trace for the Allocation trace type (Script / OLE / All). This argument is "" if the trace type is SQL.
    */
-  TraceOn(fName: SblStrIn, type: "Allocation" | "SQL", selection: "Script" | "OLE" | "All" | ""): void;
+  TraceOn(fName: (chars | String), type: "Allocation" | "SQL", selection: "Script" | "OLE" | "All" | ""): void;
   /**
    * Turns off tracing.
    */
@@ -189,11 +183,11 @@ interface BusObject {
    * Returns a instance of the named business component.
    * @param busCompName String that contains the name of a business component.
    */
-  GetBusComp(busCompName: SblStrIn): BusComp;
+  GetBusComp(busCompName: (chars | String)): BusComp;
   /**
    * Returns the name of a business object.
    */
-  Name(): SblStrOut;
+  Name(): (chars & String);
 }
 
 interface BusComp {
@@ -201,7 +195,7 @@ interface BusComp {
    * Activates a field.
    * @param fieldName String variable or literal that contains the name of the field.
    */
-  ActivateField(fieldName: SblStrIn): void;
+  ActivateField(fieldName: (chars | String)): void;
   /**
    * Activates multiple fields.
    * @param fields Property set that identifies a collection of properties. These properties identify the fields that Siebel CRM must activate.
@@ -225,7 +219,7 @@ interface BusComp {
   /**
    * CountRecords uses database aggregation to count the records returned by the last ExecuteQuery() call.
    */
-  CountRecords(): SblNumOut;
+  CountRecords(): (float & Number);
   /**
    * Deactivates the fields that are currently active from the SQL query statement of a business component.
    */
@@ -254,11 +248,11 @@ interface BusComp {
   /**
    * Moves the record pointer to the first record in a business component, making that record the current record. Returns an boolean indicating if there is at least one record or not.
    */
-  FirstRecord(): SblBoolOut;
+  FirstRecord(): (bool & Boolean);
   /**
    * Makes the first record of the multiple selection in a business component active. Returns an boolean indicating if there is at least one record selected or not.
    */
-  FirstSelected(): SblBoolOut;
+  FirstSelected(): (bool & Boolean);
   /**
    * Returns the name of the association business component.
    */
@@ -270,12 +264,12 @@ interface BusComp {
    * - An error message if the field is inactive. To avoid this situation, activate the field before you use the GetFieldValue method.
    * @param fieldName String variable or literal that contains the name of the field.
    */
-  GetFieldValue(fieldName: SblStrIn): SblStrOut;
+  GetFieldValue(fieldName: (chars | String)): (chars & String);
   /**
    * Returns a field value that is in the same format that the Siebel client uses.
    * @param fieldName String variable or literal that contains the name of the field.
    */
-  GetFormattedFieldValue(fieldName: SblStrIn): SblStrOut;
+  GetFormattedFieldValue(fieldName: (chars | String)): (chars & String);
   /**
    * Returns a value for each field specified in a property set.
    * @param fieldNamesPropSet A property set that identifies a collection of fields.
@@ -286,35 +280,35 @@ interface BusComp {
    * Returns the multivalue group business component that is associated a business component field.
    * @param fieldName String variable or literal that contains the name of the field.
    */
-  GetMVGBusComp(fieldName: SblStrIn): BusComp;
+  GetMVGBusComp(fieldName: (chars | String)): BusComp;
   /**
    * Returns the name of a search specification.
    * @param searchName Name of the search specification that references the search string.
    */
-  GetNamedSearch(searchName: SblStrIn): SblStrOut;
+  GetNamedSearch(searchName: (chars | String)): (chars & String);
   /**
    * Returns the name of the pick business component that is associated with a field in the current business component.
    * @param fieldName String variable or literal that contains the name of the field.
    */
-  GetPicklistBusComp(fieldName: SblStrIn): BusComp;
+  GetPicklistBusComp(fieldName: (chars | String)): BusComp;
   /**
    * Returns the current search expression that is defined for a business component.
    */
-  GetSearchExpr(): SblStrOut;
+  GetSearchExpr(): (chars & String);
   /**
    * Returns the search specification that is defined for a business component.
    * @param fieldName - String variable or literal that contains the name of the field.
    */
-  GetSearchSpec(fieldName: SblStrIn): SblStrOut;
+  GetSearchSpec(fieldName: (chars | String)): (chars & String);
   /**
    * Returns the sort specification for a business component.
    */
-  GetSortSpec(): SblStrOut;
+  GetSortSpec(): (chars & String);
   /**
    * Returns the value of a user property.
    * @param propName The name of the user property.
    */
-  GetUserProperty(propName: SblStrIn): SblStrOut;
+  GetUserProperty(propName: (chars | String)): (chars & String);
   /**
    * Returns the visibility mode for a business component.
    */
@@ -326,18 +320,18 @@ interface BusComp {
    * @param outPropSet - A PropertySet with the output arguments.
    */
   InvokeMethod(
-    methodName: SblStrIn,
+    methodName: (chars | String),
     inPropSet?: PropertySet,
     outPropSet?: PropertySet
   ): void;
   /**
    * Moves the record pointer to the last record in a business component. Returns an boolean indicating if there is at least one record or not.
    */
-  LastRecord(): SblBoolOut;
+  LastRecord(): (bool & Boolean);
   /**
    * Returns the name of a business component.
    */
-  Name(): SblStrOut;
+  Name(): (chars & String);
   /**
    * Adds a new record to a business component.
    * @param cursorMode Predefined constant that configures where Siebel CRM must add the new record. You can use one of the following values:
@@ -350,11 +344,11 @@ interface BusComp {
   /**
    * Moves the record pointer to the next record in a business component, making that record the current record. Returns an boolean indicating if the pointer has a record or not.
    */
-  NextRecord(): SblBoolOut;
+  NextRecord(): (bool & Boolean);
   /**
    * Makes the next record of the current multiple selection the active record. Returns an boolean indicating if the pointer has a record or not.
    */
-  NextSelected(): SblBoolOut;
+  NextSelected(): (bool & Boolean);
   /**
    * Returns the parent business component.
    */
@@ -366,7 +360,7 @@ interface BusComp {
   /**
    * Moves the record pointer to the previous record in a business component, making that record the current record.
    */
-  PreviousRecord(): SblBoolOut;
+  PreviousRecord(): (bool & Boolean);
   /**
    * Refines a query.
    */
@@ -374,18 +368,18 @@ interface BusComp {
   /**
    * Returns the current search expression that is defined for a business component.
    */
-  GetSearchExpr(): SblStrOut;
+  GetSearchExpr(): (chars & String);
   /**
    * Sets a new value in a field for the current record of a business component.
    * @param expr Sets a new value in a field for the current record of a business component.
    */
-  SetFieldValue(fieldName: SblStrIn, fieldValue: SblStrIn | number): void;
+  SetFieldValue(fieldName: (chars | String), fieldValue: (chars | String) | (float | Number)): void;
   /**
    * Sets a new value in a field in the current record of a business component. It accepts the field value in the current local format.
    * @param fieldName String that contains the name of the field.
    * @param fieldValue String that contains the value to set.
    */
-  SetFormattedFieldValue(fieldName: SblStrIn, fieldValue: SblStrIn | number): void;
+  SetFormattedFieldValue(fieldName: (chars | String), fieldValue: (chars | String) | (float | Number)): void;
   /**
    * Sets new values in the fields of the current record of a business component.
    * @param fields Property set that identifies a collection of properties. This argument identifies the fields to set and the value to set for each field.
@@ -396,29 +390,29 @@ interface BusComp {
    * @param searchName String that identifies the name of the search specification.
    * @param searchValue String that contains the search specification.
    */
-  SetNamedSearch(searchName: SblStrIn, searchValue: SblStrIn): void;
+  SetNamedSearch(searchName: (chars | String), searchValue: (chars | String)): void;
   /**
    * Sets a search expression for a business component.
    * @param searchExpr String that identifies the search specification.
    */
-  SetSearchExpr(searchExpr: SblStrIn): void;
+  SetSearchExpr(searchExpr: (chars | String)): void;
   /**
    * Sets the search specification for a business component.
    * @param fieldName String that identifies the name of the field where Siebel CRM sets the search specification.
    * @param fieldValue String that contains the search specification.
    */
-  SetSearchSpec(fieldName: SblStrIn, fieldValue: SblStrIn): void;
+  SetSearchSpec(fieldName: (chars | String), fieldValue: (chars | String)): void;
   /**
    * Sets the sort specification for a business component.
    * @param sortSpec String that contains the sort specification.
    */
-  SetSortSpec(sortSpec: SblStrIn): void;
+  SetSortSpec(sortSpec: (chars | String)): void;
   /**
    * Sets the value of a user property in a business component.
    * @param propName String that identifies the name of the user property.
    * @param propValue String that contains the new value.
    */
-  SetUserProperty(propName: SblStrIn, propValue: SblStrIn): void;
+  SetUserProperty(propName: (chars | String), propValue: (chars | String)): void;
   /**
    * Sets the visibility type for a business component.
    * @param viewMode A Siebel ViewMode constant or the corresponding integer value for the constant. For more information, see Constants You Can Use with the SetViewMode Method.
@@ -435,20 +429,20 @@ interface BusComp {
 }
 
 interface Service {
-  [x: string]: any;
+  [x: chars]: any;
   /**
    * Returns the name of the first property of a business service.
    */
-  GetFirstProperty(): SblStrOut;
+  GetFirstProperty(): (chars & String);
   /**
    * Returns the name of the next property of a business service.
    */
-  GetNextProperty(): SblStrOut;
+  GetNextProperty(): (chars & String);
   /**
    * Returns the value of a property.
    * @param propName - A string that contains the name of the property that Siebel CRM returns.
    */
-  GetProperty(propName: SblStrIn): SblStrOut;
+  GetProperty(propName: (chars | String)): (chars & String);
   /**
    * Calls a method.
    * @param methodName - The name of the method.
@@ -456,30 +450,30 @@ interface Service {
    * @param outPropSet - A PropertySet with the output arguments.
    */
   InvokeMethod(
-    methodName: SblStrIn,
+    methodName: (chars | String),
     inPropSet: PropertySet,
     outPropSet: PropertySet
   ): void;
   /**
    * Returns the name of a business service.
    */
-  Name(): SblStrOut;
+  Name(): (chars & String);
   /**
    * Returns a Boolean value that indicates if the property that the argument identifies exists.
    * @param propName - A string that contains the name of the property.
    */
-  PropertyExists(propName: SblStrIn): SblBoolOut;
+  PropertyExists(propName: (chars | String)): (bool & Boolean);
   /**
    * Removes a property from a business service.
    * @param propName - A string that contains the name of the property.
    */
-  RemoveProperty(propName: SblStrIn): void;
+  RemoveProperty(propName: (chars | String)): void;
   /**
    * Sets a value for a property of a business service.
    * @param propName - A string that contains the name of the property that Siebel CRM must modify.
    * @param propValue - A string that contains the value that Siebel CRM sets in the property that the propName argument identifies.
    */
-  SetProperty(propName: SblStrIn, propValue: SblStrIn): void;
+  SetProperty(propName: (chars | String), propValue: (chars | String)): void;
 }
 
 interface PropertySet {
@@ -487,7 +481,7 @@ interface PropertySet {
    * Adds a child property set to a property set.
    * @param propSet - A property set that Siebel CRM must make as a child to the property set that the oPropSet variable identifies.
    */
-  AddChild(propSet: PropertySet): SblNumOut;
+  AddChild(propSet: PropertySet): (float & Number);
   /**
    * Returns a copy of a property set.
    */
@@ -496,57 +490,57 @@ interface PropertySet {
    * Returns the index number of a child property set.
    * @param index - An integer that identifies the index number of the child property set that Siebel CRM must return.
    */
-  GetChild(index: SblNumIn): PropertySet;
+  GetChild(index: (float | Number)): PropertySet;
   /**
    * Returns the number of child property sets that exist for a parent property set.
    */
-  GetChildCount(): SblNumOut;
+  GetChildCount(): (float & Number);
   /**
    * Returns the name of the first property in a property set.
    */
-  GetFirstProperty(): SblStrOut;
+  GetFirstProperty(): (chars & String);
   /**
    * Returns the name of the next property in a property set.
    */
-  GetNextProperty(): SblStrOut;
+  GetNextProperty(): (chars & String);
   /**
    * Returns the value of a property.
    * @param propName - A string that contains the name of the property that Siebel CRM returns.
    */
-  GetProperty(propName: SblStrIn): SblStrOut;
+  GetProperty(propName: (chars | String)): (chars & String);
   /**
    * Returns the number of properties that exist in the current level in the hierarchy.
    */
-  GetPropertyCount(): SblNumOut;
+  GetPropertyCount(): (float & Number);
   /**
    * Returns the value of the type attribute of a property set.
    */
-  GetType(): SblStrOut;
+  GetType(): (chars & String);
   /**
    * Returns the value of the value attribute of a property set.
    */
-  GetValue(): SblStrOut;
+  GetValue(): (chars & String);
   /**
    * Inserts a child property set in a parent property set at a specific location.
    * @param propSet - The property set that Siebel CRM must make a child. It makes this property set a child of the property set that the oPropSet variable identifies.
    * @param index - An integer that identifies the position where Siebel CRM must insert the property set. The childObject argument identifies this property set.
    */
-  InsertChildAt(propSet: PropertySet, index: SblNumIn): void;
+  InsertChildAt(propSet: PropertySet, index: (float | Number)): void;
   /**
    * Returns a Boolean value that indicates if the property that the argument identifies exists.
    * @param propName - A string that contains the name of the property.
    */
-  PropertyExists(propName: SblStrIn): SblBoolOut;
+  PropertyExists(propName: (chars | String)): (bool & Boolean);
   /**
    * Removes a child property set from a parent property set.
    * @param index - An integer that identifies the index number of the child property set that Siebel CRM must remove.
    */
-  RemoveChild(index: SblNumIn): void;
+  RemoveChild(index: (float | Number)): void;
   /**
    * Removes a property from a property set.
    * @param propName - A string that contains the name of the property.
    */
-  RemoveProperty(propName: SblStrIn): void;
+  RemoveProperty(propName: (chars | String)): void;
   /**
    * Removes every property and child property set from a property set.
    */
@@ -556,17 +550,17 @@ interface PropertySet {
    * @param propName - A string that contains the name of the property that Siebel CRM must modify.
    * @param propValue - A string that contains the value that Siebel CRM sets in the property that the propName argument identifies.
    */
-  SetProperty(propName: SblStrIn, propValue: SblStrIn): void;
+  SetProperty(propName: (chars | String), propValue: (chars | String)): void;
   /**
    * Sets the value for the type attribute of a property set.
    * @param typeVal - A string that contains data that Siebel CRM must store in the type attribute.
    */
-  SetType(typeVal: SblStrIn): void;
+  SetType(typeVal: (chars | String)): void;
   /**
    * Sets the value for the value attribute of a property set.
    * @param value - A string that contains data that Siebel CRM must store in the value attribute.
    */
-  SetValue(value: SblStrIn): void;
+  SetValue(value: (chars | String)): void;
 }
 
 interface WebApplet {
@@ -585,53 +579,53 @@ interface WebApplet {
    * @param outPropSet - A PropertySet with the output arguments.
    */
   InvokeMethod(
-    methodName: SblStrIn,
+    methodName: (chars | String),
     inPropSet: PropertySet,
     outPropSet: PropertySet
   ): void;
   /**
    * Returns the name of the applet.
    */
-  Name(): SblStrOut;
+  Name(): (chars & String);
 }
 
 interface Clib {
-  fread(dstVar: any, varDescription: any, fp: FilePointer): SblNumOut;
-  fopen(fileName: SblStrIn, mode: SblStrIn): FilePointer;
-  fputs(str: SblStrIn, fp: FilePointer): SblNumOut;
-  fwrite(sourceVar: any, varDescription: any, fp: FilePointer): SblNumOut;
-  rename(oldName: SblStrIn, newName: SblStrIn): SblNumOut;
-  getenv(varname: SblStrIn): SblStrOut;
-  putenv(envName: SblStrIn, envValue: SblStrIn): SblNumOut;
-  rand(): SblNumOut;
-  srand(seed: SblNumIn): void;
-  system(command: SblStrIn): SblNumOut;
-  mkdir(folder: SblStrIn): void;
+  fread(dstVar: any, varDescription: any, fp: FilePointer): (float & Number);
+  fopen(fileName: (chars | String), mode: (chars | String)): FilePointer;
+  fputs(str: (chars | String), fp: FilePointer): (float & Number);
+  fwrite(sourceVar: any, varDescription: any, fp: FilePointer): (float & Number);
+  rename(oldName: (chars | String), newName: (chars | String)): (float & Number);
+  getenv(varname: (chars | String)): (chars & String);
+  putenv(envName: (chars | String), envValue: (chars | String)): (float & Number);
+  rand(): (float & Number);
+  srand(seed: (float | Number)): void;
+  system(command: (chars | String)): (float & Number);
+  mkdir(folder: (chars | String)): void;
 }
 
 interface FilePointer { }
 
 interface SElib {
-  dynamicLink(libName: SblStrIn, procName: SblStrIn, convention?: Convention, ...args: (string | number)[]): SblNumOut;
+  dynamicLink(libName: (chars | String), procName: (chars | String), convention?: Convention, ...args: ((chars | String) | (float | Number))[]): (float & Number);
 }
 
 interface Convention { }
 
 interface EAIMsg {
-  CreateIntObj(intObjName: SblStrIn): IntObj;
+  CreateIntObj(intObjName: (chars | String)): IntObj;
 }
 
 interface IntObj {
-  CreatePrimaryIntComp(intCompName: SblStrIn): PrIntComp;
+  CreatePrimaryIntComp(intCompName: (chars | String)): PrIntComp;
   NewInstance(): void;
 }
 
 interface PrIntComp extends IntComp {
-  CreateIntComp(intCompName: SblStrIn): IntComp;
+  CreateIntComp(intCompName: (chars | String)): IntComp;
 }
 
 interface IntComp {
   NewRecord(): void;
-  SetFieldValue(fieldName: SblStrIn, fieldValue: SblStrIn): void;
-  GetFieldValue(fieldName: SblStrIn): SblStrOut;
+  SetFieldValue(fieldName: (chars | String), fieldValue: (chars | String)): void;
+  GetFieldValue(fieldName: (chars | String)): (chars & String);
 }

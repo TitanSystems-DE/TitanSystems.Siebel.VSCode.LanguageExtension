@@ -1,5 +1,14 @@
 # Unreleased
 
+# 0.9.4
+
+- Add comment-based `this` declarations with `// @this: Type`, `// @this = Type`, and `// this: Type`.
+- Add members of the declared Siebel type to `this` completion.
+- Add top-level functions, variables, and objects from the current and sibling `.escript` files to `this` completion.
+- Allow `null` assignments for all strongly typed eScript variables, parameters, and return values.
+- Restrict source type annotations and IntelliSense to Siebel eScript-compatible types.
+- Replace internal `Sbl*` aliases in public API signatures with native `chars`, `bool`, and `float` types and their supported object equivalents.
+- Rewrite the Marketplace README with task-focused setup, usage examples, configuration, and troubleshooting guidance.
 
 # 0.9.3
 
