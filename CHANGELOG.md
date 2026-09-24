@@ -1,3 +1,7 @@
+# 0.9.1
+
+- Add a dedicated Marketplace icon and a matching transparent eScript file icon.
+
 # 0.1.1
 
 - Normalize Windows paths at the language-service host boundary so source files and built-in types are found.

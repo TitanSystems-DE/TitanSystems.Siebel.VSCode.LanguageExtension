@@ -2,9 +2,17 @@
   "name": "siebel-escript",
   "displayName": "Siebel eScript (ST)",
   "description": "Siebel eScript language support with typed with-scopes, IntelliSense, documentation and diagnostics.",
-  "version": "0.1.1",
-  "publisher": "siebel-escript-local",
-  "license": "SEE LICENSE IN LICENSE.txt",
+  "version": "0.9.2",
+  "publisher": "titansystems-de",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TitanSystems-DE/TitanSystems.Siebel.VSCode.LanguageExtension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TitanSystems-DE/TitanSystems.Siebel.VSCode.LanguageExtension/issues"
+  },
+  "icon": "icons/extension-icon.png",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -43,8 +51,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./icons/escript-light.svg",
-          "dark": "./icons/escript-dark.svg"
+          "light": "./icons/escript-file.png",
+          "dark": "./icons/escript-file.png"
         }
       }
     ],
@@ -107,5 +115,8 @@
   },
   "devDependencies": {
     "@vscode/vsce": "^4.0.0"
+  },
+  "allowScripts": {
+    "@vscode/vsce-sign@2.1.0": true
   }
 }
