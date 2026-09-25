@@ -98,3 +98,21 @@ test('extension activation, providers, live diagnostics and close lifecycle',asy
   assert(!fake.logs.some(s=>s.startsWith('[Error]')),fake.logs.join('\n'));
  } finally {for(const d of context.subscriptions.toReversed())d.dispose();}
 });
+test('.d.escript documents are validated as declarations',async()=>{
+ const declaration=new Document('interface Clib { WriteLn(arg: String): void; }','custom.d.escript');
+ const script=new Document('Clib.WriteLn("hello");','Main.escript');
+ const fake=stub([declaration,script]),context={subscriptions:[]};
+ const original=Module._load;
+ let extension;
+ try {
+  delete require.cache[require.resolve('../src/extension')];
+  Module._load=function(name,...args){return name==='vscode'?fake.api:original.call(this,name,...args);};
+  extension=require('../src/extension');
+ } finally {Module._load=original;}
+ try {
+  extension.activate(context);
+  await wait();
+  assert.deepEqual(fake.diagnostics.get(declaration.uri.toString()),[]);
+  assert.deepEqual(fake.diagnostics.get(script.uri.toString()),[]);
+ } finally {for(const d of context.subscriptions.toReversed())d.dispose();}
+});

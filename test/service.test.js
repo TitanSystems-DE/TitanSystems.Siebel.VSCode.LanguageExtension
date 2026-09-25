@@ -145,6 +145,25 @@ test('additional declarations provide completions and definition URI mapping', (
  assert(ts.displayPartsToString(s.quickInfo(offset).documentation).includes('Customer-specific'));
  s.dispose();
 });
+test('.d.escript files use declaration validation and augment sibling scripts', () => {
+ const declarationUri='file:///workspace/custom.d.escript';
+ const declaration='interface Clib { WriteLn(arg: String): void; }';
+ const declared=new ScriptService(declarationUri,declaration);
+ assert(declared.file.endsWith('.d.ts'));
+ assert.deepEqual(declared.diagnostics(),[]);
+ declared.dispose();
+
+ const source='Clib.WriteLn("hello");';
+ const script=new ScriptService('file:///workspace/Main.escript',source,{},[],[{
+  uri:declarationUri,
+  text:declaration,
+ }]);
+ assert.deepEqual(script.diagnostics(),[]);
+ const definition=script.definitions(source.indexOf('WriteLn')+2)[0];
+ assert(definition);
+ assert.equal(script.targetUri(definition.fileName),declarationUri);
+ script.dispose();
+});
 test('Clib and Buffer declarations expose the documented server-side API groups', () => {
  const {s,offset}=fixture('Clib./*cursor*/');
  const names=new Set(s.completions(offset).entries.map(entry=>entry.name));

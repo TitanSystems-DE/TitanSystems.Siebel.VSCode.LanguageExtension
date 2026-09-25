@@ -15,6 +15,7 @@ Language support for **Siebel eScript** in Visual Studio Code. The extension add
 - Live syntax and type diagnostics
 - Document formatting, outline, and code folding
 - Built-in Siebel and ST runtime declarations
+- Automatic project declarations from sibling `.d.escript` files
 - Support for project-specific `.d.ts` declaration files
 - Native eScript types such as `chars`, `float`, and `bool`
 - Siebel reference parameters declared with an `&` prefix
@@ -124,6 +125,18 @@ message.SetProperty("Queue", QueueName);
 
 Completion, navigation, references, and diagnostics work across these sibling files. Subdirectories are separate contexts. Duplicate top-level declarations in the same directory are reported as conflicts.
 
+### Declaration scripts
+
+Use a `.d.escript` file in the same directory to extend the available types without adding executable code. These files use declaration-file validation, so interfaces and declaration-only types such as `void` are accepted:
+
+```typescript
+interface Clib {
+    WriteLn(arg: String): void;
+}
+```
+
+The declarations are automatically available to sibling `.escript` files. Unlike configured `.d.ts` files, sibling `.d.escript` files do not need to be listed in the settings.
+
 ## Declaring the Type of `this`
 
 Siebel often supplies the value of `this` at runtime, so its type cannot always be inferred from the source. Add a comment immediately above a function to declare it:
@@ -185,7 +198,7 @@ Example `.vscode/settings.json`:
 }
 ```
 
-Declaration files must be listed explicitly. Imports, npm type packages, and triple-slash references are not resolved automatically. A `.d.ts` file supplies editor type information and is never executed.
+Configured `.d.ts` files must be listed explicitly. Imports, npm type packages, and triple-slash references are not resolved automatically. A `.d.ts` or `.d.escript` file supplies editor type information and is never executed.
 
 ## Command
 

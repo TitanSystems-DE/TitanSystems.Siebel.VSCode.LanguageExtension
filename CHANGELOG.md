@@ -1,5 +1,11 @@
 # Unreleased
 
+# 0.9.6
+
+- Validate `.d.escript` files as declaration files, allowing interfaces and declaration-only type syntax while making their types available to sibling scripts.
+- Preserve source positions and navigation targets when resolving declarations from `.d.escript` files.
+- Document automatic sibling `.d.escript` discovery and its distinction from configured `.d.ts` files.
+
 # 0.9.5
 
 - Support `&`-prefixed reference parameters in Siebel eScript function declarations.

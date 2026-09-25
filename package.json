@@ -2,7 +2,7 @@
   "name": "siebel-escript",
   "displayName": "Siebel eScript (ST)",
   "description": "Siebel eScript language support with typed with-scopes, IntelliSense, documentation and diagnostics.",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "publisher": "titansystems-de",
   "repository": {
     "type": "git",
