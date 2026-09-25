@@ -33,4 +33,14 @@ test('Windows host: normalized compiler paths load original script and packaged 
   const offset=s.text.indexOf('GetBusObject')+3;
   assert(s.definitions(offset).some(d=>d.fileName.endsWith('siebel.d.ts')));
  }finally{s.dispose();}
+
+ const source='function Test(): chars { return "ok"; }';
+ const duplicate=new ScriptService('file:///C:/Workspace/Scripts/Main.escript',source,{},[],[{
+  uri:'file:///c:/workspace/scripts/MAIN.escript',
+  text:source,
+ }]);
+ try {
+  assert.equal(duplicate.scriptFiles.size,1);
+  assert(!duplicate.diagnostics().some(d=>d.code===2393));
+ }finally{duplicate.dispose();}
 });

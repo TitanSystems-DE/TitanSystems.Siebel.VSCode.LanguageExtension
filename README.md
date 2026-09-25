@@ -15,6 +15,7 @@ Language support for **Siebel eScript** in Visual Studio Code. The extension add
 - Live syntax and type diagnostics
 - Document formatting, outline, and code folding
 - Built-in Siebel and ST runtime declarations
+- Automatic workspace-wide project declarations from `.d.escript` files
 - Support for project-specific `.d.ts` declaration files
 - Native eScript types such as `chars`, `float`, and `bool`
 - Siebel reference parameters declared with an `&` prefix
@@ -124,6 +125,18 @@ message.SetProperty("Queue", QueueName);
 
 Completion, navigation, references, and diagnostics work across these sibling files. Subdirectories are separate contexts. Duplicate top-level declarations in the same directory are reported as conflicts.
 
+### Declaration scripts
+
+Use a `.d.escript` file anywhere in the workspace to extend the available types without adding executable code. These files use declaration-file validation, so interfaces and declaration-only types such as `void` are accepted:
+
+```typescript
+interface Clib {
+    WriteLn(arg: String): void;
+}
+```
+
+The declarations are automatically available to every `.escript` file in the workspace, regardless of its directory. Normal `.escript` source files still share executable declarations only with files in the same directory. Unlike configured `.d.ts` files, `.d.escript` files do not need to be listed in the settings.
+
 ## Declaring the Type of `this`
 
 Siebel often supplies the value of `this` at runtime, so its type cannot always be inferred from the source. Add a comment immediately above a function to declare it:
@@ -197,6 +210,7 @@ Use **Siebel eScript: Restart Language Service** from the Command Palette after 
 | --- | --- |
 | No suggestions or diagnostics | Confirm that the file uses the **Siebel eScript** language mode, then restart the language service. |
 | Sibling declarations are missing | Make sure the files have the `.escript` extension and are located in exactly the same directory. |
+| A global declaration is missing | Make sure the file ends with `.d.escript`, is inside the open workspace, and then restart the language service. |
 | `this` members are missing | Place `// @this: Type` immediately above the function and verify that the type name is available. |
 | A custom type is missing | Check the path in `escript.typeDefinitionFiles` and open **View → Output → Siebel eScript** for errors. |
 | The file icon is not visible | The active VS Code file icon theme decides whether language-provided icons are displayed. |

@@ -45,6 +45,7 @@ function activate(context) {
     let disposed = false;
     const configuration = document => vscode.workspace.getConfiguration('escript', document.uri);
     const eligible = document => document.languageId === 'escript' && !document.isClosed;
+    const declarationScript = uri => uri.path.toLowerCase().endsWith('.d.escript');
     const directoryUri = uri => vscode.Uri.joinPath(uri, '..');
     const directoryKey = uri => directoryUri(uri).toString();
     const error = err => output.appendLine(`[Error] ${err && err.stack || err}`);
@@ -72,7 +73,7 @@ function activate(context) {
         const directory = directoryUri(document.uri);
         const entries = await vscode.workspace.fs.readDirectory(directory);
         return Promise.all(entries
-            .filter(([name]) => name.toLowerCase().endsWith('.escript'))
+            .filter(([name]) => name.toLowerCase().endsWith('.escript') && !name.toLowerCase().endsWith('.d.escript'))
             .map(async ([name]) => {
                 const uri = vscode.Uri.joinPath(directory, name);
                 const open = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
@@ -80,21 +81,42 @@ function activate(context) {
                 return { uri: uri.toString(), text };
             }));
     }
+    async function globalDeclarationScripts() {
+        const uris = new Map();
+        // Some workspace providers implement glob matching more broadly than the
+        // local file-system provider. Enforce the compound extension ourselves so
+        // ordinary .escript sources can never enter the workspace-global scope.
+        for (const uri of await vscode.workspace.findFiles('**/*.d.escript')) {
+            if (declarationScript(uri)) uris.set(uri.toString(), uri);
+        }
+        for (const document of vscode.workspace.textDocuments) {
+            if (eligible(document) && declarationScript(document.uri)) uris.set(document.uri.toString(), document.uri);
+        }
+        return Promise.all([...uris.values()].map(async uri => {
+            const open = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+            const text = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+            return { uri: uri.toString(), text };
+        }));
+    }
     async function model(document) {
         const key = document.uri.toString();
         let result = models.get(key);
         if (!result) {
             const requestedGeneration = generation;
             // Missing optional files must not disable the built-in language features.
-            const [extra, scripts] = await Promise.all([
+            const [extra, scripts, globalDeclarations] = await Promise.all([
                 safe(() => customTypes(document), []),
                 safe(() => siblingScripts(document), []),
+                safe(() => globalDeclarationScripts(), []),
             ]);
             if (disposed || !eligible(document)) return undefined;
             if (requestedGeneration !== generation) return model(document);
             result = models.get(key);
             if (!result) {
-                result = new ScriptService(key, document.getText(), { strict: configuration(document).get('strict', true) }, extra, scripts);
+                // Keep executable siblings and workspace-global declarations in
+                // separate inputs. Only same-directory .escript files may enter
+                // the shared runtime script scope.
+                result = new ScriptService(key, document.getText(), { strict: configuration(document).get('strict', true) }, [...extra, ...globalDeclarations], scripts);
                 result.directoryKey = directoryKey(document.uri);
                 models.set(key, result);
             }
@@ -283,24 +305,31 @@ function activate(context) {
             }).filter(Boolean) : [];
         }, []),
     }));
-    context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(document => { if (eligible(document)) invalidateDirectory(document.uri); else if (document.uri.path.endsWith('.d.ts')) reset(); }));
-    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => { if (eligible(event.document)) updateDirectory(event.document); else if (event.document.uri.path.endsWith('.d.ts')) reset(); }));
+    context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(document => {
+        if (eligible(document)) declarationScript(document.uri) ? reset() : invalidateDirectory(document.uri);
+        else if (document.uri.path.endsWith('.d.ts')) reset();
+    }));
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
+        if (eligible(event.document)) declarationScript(event.document.uri) ? reset() : updateDirectory(event.document);
+        else if (event.document.uri.path.endsWith('.d.ts')) reset();
+    }));
     context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(document => {
         const key = document.uri.toString();
         clearTimeout(timers.get(key)); timers.delete(key);
         models.get(key)?.dispose(); models.delete(key);
         diagnostics.delete(document.uri);
-        if (document.uri.path.endsWith('.d.ts')) reset();
+        if (document.uri.path.endsWith('.d.ts') || declarationScript(document.uri)) reset();
         else if (document.languageId === 'escript') invalidateDirectory(document.uri);
     }));
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('escript')) reset(); }));
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.d.ts');
     context.subscriptions.push(watcher, watcher.onDidChange(reset), watcher.onDidCreate(reset), watcher.onDidDelete(reset));
     const scriptWatcher = vscode.workspace.createFileSystemWatcher('**/*.escript');
+    const scriptChanged = uri => declarationScript(uri) ? reset() : invalidateDirectory(uri);
     context.subscriptions.push(scriptWatcher,
-        scriptWatcher.onDidChange(invalidateDirectory),
-        scriptWatcher.onDidCreate(invalidateDirectory),
-        scriptWatcher.onDidDelete(invalidateDirectory));
+        scriptWatcher.onDidChange(scriptChanged),
+        scriptWatcher.onDidCreate(scriptChanged),
+        scriptWatcher.onDidDelete(scriptChanged));
     context.subscriptions.push(vscode.commands.registerCommand('escript.restartLanguageService', () => {
         reset(); output.appendLine('Language service restarted.');
     }));

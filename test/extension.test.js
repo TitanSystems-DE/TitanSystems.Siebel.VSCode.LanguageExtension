@@ -46,7 +46,8 @@ function stub(document){
  TextEdit:{replace:(range,newText)=>({range,newText})},
  window:{createOutputChannel:()=>({appendLine:s=>logs.push(s),dispose(){}})},
  workspace:{textDocuments:documents,getConfiguration:()=>({get:(_name,fallback)=>fallback}),getWorkspaceFolder:()=>({uri:Uri.parse('file:///workspace')}),
-  fs:{readDirectory:async()=>documents.map(d=>[path.posix.basename(d.uri.path),1]),readFile:async uri=>Buffer.from(documents.find(d=>d.uri.toString()===uri.toString()).getText())},
+  fs:{readDirectory:async uri=>documents.filter(d=>path.posix.dirname(d.uri.path)===uri.path).map(d=>[path.posix.basename(d.uri.path),1]),readFile:async uri=>Buffer.from(documents.find(d=>d.uri.toString()===uri.toString()).getText())},
+  findFiles:async pattern=>pattern==='**/*.d.escript'?documents.filter(d=>d.uri.path.toLowerCase().endsWith('.d.escript')).map(d=>d.uri):[],
   createFileSystemWatcher:()=>({onDidChange:()=>disposable(),onDidCreate:()=>disposable(),onDidDelete:()=>disposable(),dispose(){}})},
  languages:{createDiagnosticCollection:()=>({set:(uri,data)=>diagnostics.set(uri.toString(),data),delete:uri=>diagnostics.delete(uri.toString()),dispose(){diagnostics.clear();}})},
  commands:{registerCommand:(name,fn)=>{events[name]=fn;return disposable();}},
@@ -96,5 +97,28 @@ test('extension activation, providers, live diagnostics and close lifecycle',asy
   doc.isClosed=true;fake.events.onDidCloseTextDocument(doc);
   assert(!fake.diagnostics.has(doc.uri.toString()));
   assert(!fake.logs.some(s=>s.startsWith('[Error]')),fake.logs.join('\n'));
+ } finally {for(const d of context.subscriptions.toReversed())d.dispose();}
+});
+test('.d.escript documents are validated globally across directories',async()=>{
+ const declaration=new Document('interface Clib { WriteLn(arg: String): void; }','types/custom.d.escript');
+ const script=new Document('Clib.WriteLn("hello");\nForeignOnly();','scripts/Main.escript');
+ const foreign=new Document('function ForeignOnly(): chars { return "foreign"; }','other/Foreign.escript');
+ const fake=stub([declaration,script,foreign]),context={subscriptions:[]};
+ const original=Module._load;
+ let extension;
+ try {
+  delete require.cache[require.resolve('../src/extension')];
+  Module._load=function(name,...args){return name==='vscode'?fake.api:original.call(this,name,...args);};
+  extension=require('../src/extension');
+ } finally {Module._load=original;}
+ try {
+  extension.activate(context);
+  await wait();
+  assert.deepEqual(fake.diagnostics.get(declaration.uri.toString()),[]);
+  assert.deepEqual(fake.diagnostics.get(script.uri.toString()).map(d=>d.code),[2304]);
+  declaration.text='interface Clib {}';declaration.version++;
+  fake.events.onDidChangeTextDocument({document:declaration});
+  await wait();
+  assert(fake.diagnostics.get(script.uri.toString()).some(d=>d.code===2339));
  } finally {for(const d of context.subscriptions.toReversed())d.dispose();}
 });

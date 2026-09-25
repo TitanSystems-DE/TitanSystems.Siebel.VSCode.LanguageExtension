@@ -4,6 +4,21 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const ts = require('../vendor/typescript.js');
 const normalizePath = file => file.replace(/\\/g, '/');
+const isEScriptDeclaration = uri => /\.d\.escript(?:[?#]|$)/i.test(uri);
+function scriptIdentity(uri) {
+    try {
+        const parsed = new URL(uri);
+        parsed.hash = '';
+        parsed.search = '';
+        let pathname = decodeURIComponent(parsed.pathname).replace(/\\/g, '/');
+        // Windows drive-letter paths are case-insensitive even when represented
+        // as file URIs with different casing or percent encoding.
+        if (parsed.protocol === 'file:' && /^\/[a-z]:\//i.test(pathname)) pathname = pathname.toLowerCase();
+        return `${parsed.protocol.toLowerCase()}//${parsed.host.toLowerCase()}${pathname}`;
+    } catch {
+        return uri;
+    }
+}
 const typesRoot = normalizePath(path.resolve(__dirname, '../types'));
 const builtins = new Map(['runtime.d.ts', 'siebel.d.ts'].map(name => {
     const file = path.posix.join(typesRoot, name);
@@ -92,11 +107,19 @@ class ScriptService {
         // Virtual .ts name: no source rewriting, so every original offset remains valid.
         this.file = virtualFile(uri, '.ts');
         this.scripts = new Map();
+        this.scriptIdentities = new Map();
         this.scriptFiles = new Map();
         this.files = new Map(builtins);
         this.uris = new Map();
         const addScript = script => {
-            const file = virtualFile(script.uri, '.ts');
+            const identity = scriptIdentity(script.uri);
+            const existing = this.scriptIdentities.get(identity);
+            if (existing) {
+                this.scripts.set(script.uri, existing);
+                return;
+            }
+            const file = virtualFile(script.uri, isEScriptDeclaration(script.uri) ? '.d.ts' : '.ts');
+            this.scriptIdentities.set(identity, file);
             this.scripts.set(script.uri, file);
             this.scriptFiles.set(file, { text: script.text, version: 1 });
             this.uris.set(file, script.uri);

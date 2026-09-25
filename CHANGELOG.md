@@ -1,5 +1,21 @@
 # Unreleased
 
+# 0.9.7
+
+- Load every `.d.escript` file recursively from the workspace and make its declarations available to `.escript` files in all directories.
+- Revalidate all active scripts when a global `.d.escript` file is created, changed, opened, closed, or deleted.
+- Enforce separate scopes so normal `.escript` source sharing remains restricted to files in the same directory.
+- Filter workspace declaration search results by the full `.d.escript` compound extension so ordinary `.escript` files can never become globally visible.
+- Deduplicate Windows file URIs case-insensitively to prevent incorrect `Duplicate function implementation` diagnostics.
+- Add regression coverage for workspace-global declarations, local source scope, live updates, and Windows URI deduplication.
+- Document automatic workspace-wide `.d.escript` discovery and its distinction from configured `.d.ts` files.
+
+# 0.9.6
+
+- Validate `.d.escript` files as declaration files, allowing interfaces and declaration-only type syntax while making their types available to sibling scripts.
+- Preserve source positions and navigation targets when resolving declarations from `.d.escript` files.
+- Document automatic sibling `.d.escript` discovery and its distinction from configured `.d.ts` files.
+
 # 0.9.5
 
 - Support `&`-prefixed reference parameters in Siebel eScript function declarations.
