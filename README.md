@@ -198,7 +198,7 @@ Example `.vscode/settings.json`:
 }
 ```
 
-Declaration files must be listed explicitly. Imports, npm type packages, and triple-slash references are not resolved automatically. A `.d.ts` file supplies editor type information and is never executed.
+Configured `.d.ts` files must be listed explicitly. Imports, npm type packages, and triple-slash references are not resolved automatically. A `.d.ts` or `.d.escript` file supplies editor type information and is never executed.
 
 ## Command
 
