@@ -21,7 +21,8 @@ This extension includes a modified version of TypeScript 6.0.3.
 The bundled compiler has been modified to support Siebel eScript analysis.
 These changes introduce the `siebelEScript` compiler option and adapt name
 resolution, type checking, and language-service behavior for typed `with`
-scopes.
+scopes. The parser also accepts Siebel eScript `&`-prefixed reference
+parameters while exposing their unprefixed names to the language service.
 
 The bundled compiler is a modified distribution, not an unmodified
 Microsoft release.

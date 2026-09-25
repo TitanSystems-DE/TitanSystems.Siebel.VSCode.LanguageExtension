@@ -1,5 +1,14 @@
 # Unreleased
 
+# 0.9.5
+
+- Support `&`-prefixed reference parameters in Siebel eScript function declarations.
+- Resolve reference parameters under their unprefixed variable name for diagnostics, navigation, references, and signature help.
+- Expand the documented server-side `Clib` API, including file, string, buffer, mathematical, time, character, error, search, and sort operations.
+- Add `Buffer`, `ClibTime`, and `ClibDivisionResult` declarations.
+- Treat source annotations `Number`, `String`, and `Boolean` as their primitive eScript equivalents so operators such as `+` and `+=` work correctly.
+- Treat source annotations `Number`, `String`, and `Boolean` as their primitive eScript equivalents so operators such as `+` and `+=` work correctly.
+
 # 0.9.4
 
 - Add comment-based `this` declarations with `// @this: Type`, `// @this = Type`, and `// this: Type`.
