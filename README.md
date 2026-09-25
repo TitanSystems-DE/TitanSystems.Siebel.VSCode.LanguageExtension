@@ -17,6 +17,8 @@ Language support for **Siebel eScript** in Visual Studio Code. The extension add
 - Built-in Siebel and ST runtime declarations
 - Support for project-specific `.d.ts` declaration files
 - Native eScript types such as `chars`, `float`, and `bool`
+- Siebel reference parameters declared with an `&` prefix
+- Server-side `Clib` APIs and the `Buffer`, `ClibTime`, and `ClibDivisionResult` types
 
 No Node.js installation, `tsconfig.json`, or workspace TypeScript installation is required.
 
@@ -67,7 +69,37 @@ Inside `with (bc)`, suggestions are based on `BusComp`. Hover, parameter informa
 
 TypeScript-only types and constructs are not valid eScript. Use `chars` instead of `string`, `float` instead of `number`, and `bool` instead of `boolean`. For an untyped variable, omit its type instead of writing `any`.
 
+The runtime annotations `String`, `Number`, and `Boolean` use the corresponding primitive eScript semantics. Values declared as `Number` therefore support arithmetic and compound operators such as `+`, `-`, `+=`, and `-=`.
+
 `null` can be assigned to typed variables, passed to typed parameters, and returned from typed functions without adding a nullable type annotation.
+
+### Reference parameters
+
+Prefix a function parameter with `&` to use Siebel eScript pass-by-reference syntax:
+
+```typescript
+function UpdateStatus(recordId: chars, &status: chars) {
+    status = "Processed: " + recordId;
+}
+```
+
+Inside the function, use the parameter without the prefix—in this example, `status`. Completion, diagnostics, navigation, references, and signature help treat it as a normal local parameter. The `&` belongs only in the function declaration; calls use the regular argument syntax.
+
+### Clib and buffers
+
+The server-side `Clib` object includes declarations for Oracle-documented file and directory operations, file I/O, string and memory operations, mathematics, date and time handling, character classification, error handling, and array search and sorting. Related declarations include `FilePointer`, `Buffer`, `ClibTime`, and `ClibDivisionResult`.
+
+```typescript
+var file: FilePointer = Clib.fopen("C:\\temp\\result.txt", "wt");
+Clib.fputs("Done", file);
+Clib.fclose(file);
+
+var now: ClibTime = Clib.localtime(Clib.time());
+var buffer: Buffer = new Buffer(128, true, false);
+buffer.putString(Clib.asctime(now));
+```
+
+`Clib` is a server-side API and is not available in Browser Script. Individual methods can also differ between Windows and UNIX; validate operating-system-dependent behavior in the target Siebel environment.
 
 ## Working with Multiple Files
 
@@ -184,7 +216,7 @@ To force the file association, add this to your VS Code settings:
 - The extension does not connect to a Siebel server, execute scripts, or deploy repository objects.
 - Object-dependent `this` types are not inferred automatically; use `// @this: Type`.
 - Browser, Node.js, and modern ECMAScript globals such as `window`, `Promise`, and `Map` are intentionally excluded.
-- Some Clib, Buffer, BLOB, conversion, and less common Siebel APIs may not yet be fully described.
+- Some BLOB, conversion, and less common Siebel APIs may not yet be fully described.
 - Static analysis complements, but does not replace, validation in the target Siebel environment.
 
 ## Feedback

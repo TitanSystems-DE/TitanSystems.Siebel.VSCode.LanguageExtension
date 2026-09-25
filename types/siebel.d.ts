@@ -9,6 +9,15 @@ declare function TheApplication(): Application;
 declare function EAICreateIntMsgOut(propSet: PropertySet): EAIMsg;
 declare const Clib: Clib;
 declare const SElib: SElib;
+declare const EOF: (float & Number);
+declare const RAND_MAX: (float & Number);
+declare const SEEK_CUR: (float & Number);
+declare const SEEK_END: (float & Number);
+declare const SEEK_SET: (float & Number);
+declare const F_ULOCK: (float & Number);
+declare const F_LOCK: (float & Number);
+declare const F_TLOCK: (float & Number);
+declare const F_TEST: (float & Number);
 
 
 //Siebel eScript specific conversion methods
@@ -590,23 +599,196 @@ interface WebApplet {
 }
 
 interface Clib {
-  fread(dstVar: any, varDescription: any, fp: FilePointer): (float & Number);
+  /** Read-only error number set by Clib and SElib operations. */
+  readonly errno: (float & Number);
+
+  // File and directory operations
+  fclose(filePointer: FilePointer): (float & Number);
+  tmpfile(): FilePointer;
+  tmpnam(): (chars & String);
+  remove(fileName: (chars | String)): (float & Number);
+  lockf(filePointer: FilePointer, operation: (float | Number), size: (float | Number)): (float & Number);
   fopen(fileName: (chars | String), mode: (chars | String)): FilePointer;
+  rename(oldName: (chars | String), newName: (chars | String)): (float & Number);
+  freopen(fileName: (chars | String), mode: (chars | String), filePointer: FilePointer): FilePointer;
+  chdir(directoryPath: (chars | String)): (float & Number);
+  mkdir(directoryPath: (chars | String)): (float & Number);
+  getcwd(): (chars & String);
+  rmdir(directoryPath: (chars | String)): (float & Number);
+
+  // File input and output
+  fflush(filePointer: FilePointer): (float & Number);
+  feof(filePointer: FilePointer): (float & Number);
+  fgetc(filePointer: FilePointer): (float & Number);
+  getc(filePointer: FilePointer): (float & Number);
+  fgets(filePointer: FilePointer): ((chars & String) | null);
+  fgets(maxLen: (float | Number), filePointer: FilePointer): ((chars & String) | null);
+  fgetpos(filePointer: FilePointer, position: any): (float & Number);
+  ftell(filePointer: FilePointer): (float & Number);
+  rewind(filePointer: FilePointer): void;
+  fread(dstVar: any, varDescription: any, fp: FilePointer): (float & Number);
+  fsetpos(filePointer: FilePointer, position: any): (float & Number);
+  fseek(filePointer: FilePointer, offset: (float | Number), mode?: (float | Number)): (float & Number);
+  fscanf(filePointer: FilePointer, format: (chars | String), ...args: any[]): (float & Number);
+  scanf(format: (chars | String), ...args: any[]): (float & Number);
+  ungetc(character: (chars | String) | (float | Number), filePointer: FilePointer): (float & Number);
+  fputc(character: (chars | String) | (float | Number), filePointer: FilePointer): (float & Number);
+  putc(character: (chars | String) | (float | Number), filePointer: FilePointer): (float & Number);
+  fprintf(filePointer: FilePointer, format: (chars | String), ...args: any[]): (float & Number);
   fputs(str: (chars | String), fp: FilePointer): (float & Number);
   fwrite(sourceVar: any, varDescription: any, fp: FilePointer): (float & Number);
-  rename(oldName: (chars | String), newName: (chars | String)): (float & Number);
+  printf(format: (chars | String), ...args: any[]): (float & Number);
+  puts(value: (chars | String)): (float & Number);
+
+  // String operations
+  strncat(destString: (chars | String), sourceString: (chars | String), maxLen: (float | Number)): (chars & String);
+  strcmp(left: (chars | String), right: (chars | String)): (float & Number);
+  stricmp(left: (chars | String), right: (chars | String)): (float & Number);
+  strcmpi(left: (chars | String), right: (chars | String)): (float & Number);
+  strncmp(left: (chars | String), right: (chars | String), maxLen: (float | Number)): (float & Number);
+  strncmpi(left: (chars | String), right: (chars | String), maxLen: (float | Number)): (float & Number);
+  strnicmp(left: (chars | String), right: (chars | String), maxLen: (float | Number)): (float & Number);
+  strlwr(value: (chars | String)): (chars & String);
+  strupr(value: (chars | String)): (chars & String);
+  strncpy(destString: any, sourceString: (chars | String), maxLen: (float | Number)): (float & Number);
+  rsprintf(format: (chars | String), ...args: any[]): (chars & String);
+  sprintf(destination: any, format: (chars | String), ...args: any[]): (float & Number);
+  strchr(value: (chars | String), character: (chars | String) | (float | Number)): ((chars & String) | null);
+  strrchr(value: (chars | String), character: (chars | String) | (float | Number)): ((chars & String) | null);
+  strstr(value: (chars | String), substring: (chars | String)): ((chars & String) | null);
+  strstri(value: (chars | String), substring: (chars | String)): ((chars & String) | null);
+  strpbrk(value: (chars | String), characterSet: (chars | String)): ((chars & String) | null);
+  strcspn(value: (chars | String), characterSet: (chars | String)): (float & Number);
+  strspn(value: (chars | String), characterSet: (chars | String)): (float & Number);
+  strlen(value: (chars | String)): (float & Number);
+  strcpy(destination: any, source: (chars | String)): (chars & String);
+
+  // Buffer operations
+  memchr(buffer: Buffer, character: (chars | String) | (float | Number), size?: (float | Number)): Buffer | null;
+  memcmp(left: Buffer, right: Buffer, length?: (float | Number)): (float & Number);
+  memcpy(destination: Buffer, source: Buffer, length?: (float | Number)): Buffer;
+  memmove(destination: Buffer, source: Buffer, length?: (float | Number)): Buffer;
+  memset(buffer: Buffer, character: (chars | String) | (float | Number), length?: (float | Number)): Buffer;
+
+  // Mathematical operations
   getenv(varname: (chars | String)): (chars & String);
   putenv(envName: (chars | String), envValue: (chars | String)): (float & Number);
   rand(): (float & Number);
-  srand(seed: (float | Number)): void;
+  srand(seed?: (float | Number)): void;
+  div(numerator: (float | Number), denominator: (float | Number)): ClibDivisionResult;
+  ldiv(numerator: (float | Number), denominator: (float | Number)): ClibDivisionResult;
+  ldexp(mantissa: (float | Number), exponent: (float | Number)): (float & Number);
+  frexp(value: (float | Number), exponent: any): (float & Number);
+  modf(value: (float | Number), integerPart: any): (float & Number);
+  cosh(value: (float | Number)): (float & Number);
+  sinh(value: (float | Number)): (float & Number);
+  tanh(value: (float | Number)): (float & Number);
+  abs(value: (float | Number)): (float & Number);
+  fabs(value: (float | Number)): (float & Number);
+  labs(value: (float | Number)): (float & Number);
+  acos(value: (float | Number)): (float & Number);
+  asin(value: (float | Number)): (float & Number);
+  atan(value: (float | Number)): (float & Number);
+  atan2(y: (float | Number), x: (float | Number)): (float & Number);
+  atof(value: (chars | String)): (float & Number);
+  atoi(value: (chars | String)): (float & Number);
+  atol(value: (chars | String)): (float & Number);
+  ceil(value: (float | Number)): (float & Number);
+  cos(value: (float | Number)): (float & Number);
+  exp(value: (float | Number)): (float & Number);
+  floor(value: (float | Number)): (float & Number);
+  fmod(dividend: (float | Number), divisor: (float | Number)): (float & Number);
+  log(value: (float | Number)): (float & Number);
+  max(...values: (float | Number)[]): (float & Number);
+  min(...values: (float | Number)[]): (float & Number);
+  pow(base: (float | Number), exponent: (float | Number)): (float & Number);
+  sin(value: (float | Number)): (float & Number);
+  sqrt(value: (float | Number)): (float & Number);
+  tan(value: (float | Number)): (float & Number);
+
+  // Date and time operations
+  asctime(time: ClibTime): (chars & String);
+  clock(): (float & Number);
+  ctime(time: (float | Number)): (chars & String);
+  difftime(later: (float | Number), earlier: (float | Number)): (float & Number);
+  gmtime(time: (float | Number)): ClibTime;
+  localtime(time: (float | Number)): ClibTime;
+  mktime(time: ClibTime): (float & Number);
+  strftime(destination: any, format: (chars | String), time: ClibTime): (chars & String);
+  time(): (float & Number);
+
+  // Character classification
+  isalpha(character: (chars | String) | (float | Number)): (float & Number);
+  isalnum(character: (chars | String) | (float | Number)): (float & Number);
+  isascii(character: (chars | String) | (float | Number)): (float & Number);
+  iscntrl(character: (chars | String) | (float | Number)): (float & Number);
+  isdigit(character: (chars | String) | (float | Number)): (float & Number);
+  islower(character: (chars | String) | (float | Number)): (float & Number);
+  isprint(character: (chars | String) | (float | Number)): (float & Number);
+  isgraph(character: (chars | String) | (float | Number)): (float & Number);
+  ispunct(character: (chars | String) | (float | Number)): (float & Number);
+  isspace(character: (chars | String) | (float | Number)): (float & Number);
+  isupper(character: (chars | String) | (float | Number)): (float & Number);
+  isxdigit(character: (chars | String) | (float | Number)): (float & Number);
+  toascii(character: (chars | String) | (float | Number)): (float & Number);
+  tolower(character: (chars | String) | (float | Number)): (chars & String);
+  toupper(character: (chars | String) | (float | Number)): (chars & String);
+
+  // Error handling and other operations
+  clearerr(filePointer: FilePointer): void;
+  ferror(filePointer: FilePointer): (float & Number);
+  strerror(errorNumber: (float | Number)): (chars & String);
+  perror(message?: (chars | String)): void;
   system(command: (chars | String)): (float & Number);
-  mkdir(folder: (chars | String)): void;
+  bsearch(key: any, array: any[], compareFunction: (key: any, value: any) => (float | Number)): any;
+  bsearch(key: any, array: any[], elementCount: (float | Number), compareFunction: (key: any, value: any) => (float | Number)): any;
+  qsort(array: any[], compareFunction: (left: any, right: any) => (float | Number)): void;
+  qsort(array: any[], elementCount: (float | Number), compareFunction: (left: any, right: any) => (float | Number)): void;
 }
 
 interface FilePointer { }
 
+interface ClibDivisionResult {
+  quot: (float & Number);
+  rem: (float & Number);
+}
+
+interface ClibTime {
+  tm_sec: (float & Number);
+  tm_min: (float & Number);
+  tm_hour: (float & Number);
+  tm_mday: (float & Number);
+  tm_mon: (float & Number);
+  tm_year: (float & Number);
+  tm_wday: (float & Number);
+  tm_yday: (float & Number);
+  tm_isdst: (float & Number);
+}
+
+interface Buffer {
+  size: (float & Number);
+  cursor: (float & Number);
+  data: any;
+  bigEndian: (bool & Boolean);
+  unicode: (bool & Boolean);
+  [offset: float]: (float & Number);
+  subBuffer(beginning: (float | Number), end: (float | Number)): Buffer;
+  getString(length?: (float | Number)): (chars & String);
+  getValue(size?: (float | Number)): (float & Number);
+  putString(value: (chars | String)): void;
+  putValue(value: (float | Number), size?: (float | Number)): void;
+  toString(): (chars & String);
+}
+
+interface BufferConstructor {
+  new(size?: (float | Number), unicode?: (bool | Boolean), bigEndian?: (bool | Boolean)): Buffer;
+  new(value: (chars | String) | Buffer, unicode?: (bool | Boolean), bigEndian?: (bool | Boolean)): Buffer;
+}
+declare const Buffer: BufferConstructor;
+
 interface SElib {
   dynamicLink(libName: (chars | String), procName: (chars | String), convention?: Convention, ...args: ((chars | String) | (float | Number))[]): (float & Number);
+  pointer(buffer: Buffer): (float & Number);
 }
 
 interface Convention { }

@@ -1,3 +1,30 @@
+diff --git a/src/compiler/parser.ts b/src/compiler/parser.ts
+index 0b1be1a..6ad45d2 100644
+--- a/src/compiler/parser.ts
++++ b/src/compiler/parser.ts
+@@ -3302,6 +3302,6 @@ namespace Parser {
+     }
+     function isStartOfParameter(isJSDocParameter: boolean) {
+-        return token() === SyntaxKind.DotDotDotToken || isBindingIdentifierOrPrivateIdentifierOrPattern() || isModifierKind(token()) || token() === SyntaxKind.AtToken || isStartOfType(/*inStartOfParameter*/ !isJSDocParameter);
++        return token() === SyntaxKind.AmpersandToken || token() === SyntaxKind.DotDotDotToken || isBindingIdentifierOrPrivateIdentifierOrPattern() || isModifierKind(token()) || token() === SyntaxKind.AtToken || isStartOfType(/*inStartOfParameter*/ !isJSDocParameter);
+     }
+@@ -3318,6 +3318,6 @@ namespace Parser {
+     }
+     function isParameterNameStart(): boolean {
+-        return isBindingIdentifier() || token() === SyntaxKind.OpenBracketToken || token() === SyntaxKind.OpenBraceToken;
++        return token() === SyntaxKind.AmpersandToken || isBindingIdentifier() || token() === SyntaxKind.OpenBracketToken || token() === SyntaxKind.OpenBraceToken;
+     }
+@@ -3355,6 +3355,9 @@ namespace Parser {
+         const savedTopLevel = topLevel;
+         topLevel = false;
+         const dotDotDotToken = parseOptionalToken<DotDotDotToken>(SyntaxKind.DotDotDotToken);
++        if (token() === SyntaxKind.AmpersandToken) {
++            nextToken();
++        }
+         if (!allowAmbiguity && !isParameterNameStart()) {
+             return undefined;
+         }
+
 diff --git a/src/compiler/binder.ts b/src/compiler/binder.ts
 index 5980b11..c863535 100644
 --- a/src/compiler/binder.ts
@@ -29,6 +56,19 @@ index 0567712..c8e8d4a 100644
          onPropertyWithInvalidInitializer: checkAndReportErrorForInvalidInitializer,
          onFailedToResolveSymbol,
          onSuccessfullyResolvedSymbol,
+@@ -21725,5 +21730,13 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
+     }
+     function getTypeFromTypeReference(node: TypeReferenceNode): Type {
++        if (compilerOptions.siebelEScript && !getSourceFileOfNode(node).isDeclarationFile && isIdentifier(node.typeName)) {
++            switch (idText(node.typeName)) {
++                case "Number": return numberType;
++                case "String": return stringType;
++                case "Boolean": return booleanType;
++            }
++        }
+         const links = getNodeLinks(node);
+         if (!links.resolvedType) {
+             if (isConstTypeReference(node) && isAssertionExpression(node.parent)) {
 @@ -28756,7 +28761,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
      // parameter symbols with declarations that have explicit type annotations. Such references are
      // resolvable with no possibility of triggering circularities in control flow analysis.

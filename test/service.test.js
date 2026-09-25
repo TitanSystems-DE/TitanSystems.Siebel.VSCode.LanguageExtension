@@ -76,6 +76,23 @@ test('null can be assigned to every strongly typed eScript value', () => {
  assert(s.diagnostics().some(d=>d.code===2322));
  s.dispose();
 });
+test('reference parameters use their unprefixed name inside the function', () => {
+ const untyped=new ScriptService('file:///workspace/Untyped.escript','function MyTestFunction(param1, &param2) { param2 = param1; }',{strict:false});
+ assert.deepEqual(untyped.diagnostics(),[]);
+ untyped.dispose();
+ const source='function MyTestFunction(param1: chars, &param2: chars): chars { param2 = param1; return param2; }\nvar result: chars = MyTestFunction("one", "two");';
+ const {s}=fixture(source);
+ assert.deepEqual(s.diagnostics(),[]);
+ const declaration=source.indexOf('param2');
+ const assignment=source.indexOf('param2',declaration+1);
+ const definition=s.definitions(assignment)[0];
+ assert(definition);
+ assert.equal(definition.textSpan.start,declaration);
+ assert(s.references(assignment).filter(reference=>reference.fileName===s.file).length>=3);
+ const signature=s.signatureHelp(source.lastIndexOf('("one"')+1);
+ assert.equal(signature.items[0].parameters[1].displayParts.map(part=>part.text).join(''),'param2: chars');
+ s.dispose();
+});
 test('function header comments assign a local this type', () => {
  for(const directive of ['// @this: Service','// @this = Service','// this: Service']) {
   const {s,offset}=fixture(`${directive}\nfunction Test() { this.Inv/*cursor*/okeMethod("Run"); }`);
@@ -126,6 +143,22 @@ test('additional declarations provide completions and definition URI mapping', (
  assert.equal(s.diagnostics().length,0);
  assert.equal(s.targetUri(s.definitions(offset)[0].fileName),uri);
  assert(ts.displayPartsToString(s.quickInfo(offset).documentation).includes('Customer-specific'));
+ s.dispose();
+});
+test('Clib and Buffer declarations expose the documented server-side API groups', () => {
+ const {s,offset}=fixture('Clib./*cursor*/');
+ const names=new Set(s.completions(offset).entries.map(entry=>entry.name));
+ for(const name of [
+  'fclose','tmpfile','chdir','fflush','fgets','fseek','fprintf','strncat','strcmpi',
+  'rsprintf','memcpy','div','frexp','localtime','strftime','isalpha','strerror','bsearch','qsort',
+ ]) assert(names.has(name),name);
+ s.update('var buffer: Buffer = new Buffer(32, true, false);\nbuffer.putString("ok");\nvar time: ClibTime = Clib.localtime(Clib.time());\nvar quotient: float = Clib.div(7, 3).quot;\nvar text: chars = Clib.rsprintf("%d", quotient);');
+ assert.deepEqual(s.diagnostics(),[]);
+ s.dispose();
+});
+test('numeric API results support arithmetic and compound addition', () => {
+ const {s}=fixture('var value: Number = Clib.rand();\nvar sum: float = value + 1;\nvalue += 1;\nvar count: Number = TheApplication().GetBusObject("Account").GetBusComp("Account").CountRecords();\ncount += 1;');
+ assert.deepEqual(s.diagnostics(),[]);
  s.dispose();
 });
 test('formatting returns edits and navigation exposes event functions', () => {

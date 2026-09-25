@@ -35155,7 +35155,7 @@ var Parser;
     }
   }
   function isStartOfParameter(isJSDocParameter) {
-    return token() === 26 /* DotDotDotToken */ || isBindingIdentifierOrPrivateIdentifierOrPattern() || isModifierKind(token()) || token() === 60 /* AtToken */ || isStartOfType(
+    return token() === 51 /* AmpersandToken */ || token() === 26 /* DotDotDotToken */ || isBindingIdentifierOrPrivateIdentifierOrPattern() || isModifierKind(token()) || token() === 60 /* AtToken */ || isStartOfType(
       /*inStartOfParameter*/
       !isJSDocParameter
     );
@@ -35168,7 +35168,7 @@ var Parser;
     return name;
   }
   function isParameterNameStart() {
-    return isBindingIdentifier() || token() === 23 /* OpenBracketToken */ || token() === 19 /* OpenBraceToken */;
+    return token() === 51 /* AmpersandToken */ || isBindingIdentifier() || token() === 23 /* OpenBracketToken */ || token() === 19 /* OpenBraceToken */;
   }
   function parseParameter(inOuterAwaitContext) {
     return parseParameterWorker(inOuterAwaitContext);
@@ -35214,6 +35214,9 @@ var Parser;
     const savedTopLevel = topLevel;
     topLevel = false;
     const dotDotDotToken = parseOptionalToken(26 /* DotDotDotToken */);
+    if (token() === 51 /* AmpersandToken */) {
+      nextToken();
+    }
     if (!allowAmbiguity && !isParameterNameStart()) {
       return void 0;
     }
@@ -65211,6 +65214,16 @@ function createTypeChecker(host) {
     return strictNullChecks ? getNullableType(type, 8 /* Null */) : type;
   }
   function getTypeFromTypeReference(node) {
+    if (compilerOptions.siebelEScript && !getSourceFileOfNode(node).isDeclarationFile && isIdentifier(node.typeName)) {
+      switch (idText(node.typeName)) {
+        case "Number":
+          return numberType;
+        case "String":
+          return stringType;
+        case "Boolean":
+          return booleanType;
+      }
+    }
     const links = getNodeLinks(node);
     if (!links.resolvedType) {
       if (isConstTypeReference(node) && isAssertionExpression(node.parent)) {
