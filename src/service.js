@@ -4,6 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const ts = require('../vendor/typescript.js');
 const normalizePath = file => file.replace(/\\/g, '/');
+const isEScriptDeclaration = uri => /\.d\.escript(?:[?#]|$)/i.test(uri);
 const typesRoot = normalizePath(path.resolve(__dirname, '../types'));
 const builtins = new Map(['runtime.d.ts', 'siebel.d.ts'].map(name => {
     const file = path.posix.join(typesRoot, name);
@@ -89,14 +90,15 @@ const virtualFile = (uri, extension) => path.posix.join(
 class ScriptService {
     constructor(uri, text, options = {}, declarations = [], scripts = []) {
         this.uri = uri;
-        // Virtual .ts name: no source rewriting, so every original offset remains valid.
-        this.file = virtualFile(uri, '.ts');
+        // Declaration scripts use a virtual .d.ts name so TypeScript applies ambient
+        // declaration semantics. No source rewriting is needed, keeping offsets stable.
+        this.file = virtualFile(uri, isEScriptDeclaration(uri) ? '.d.ts' : '.ts');
         this.scripts = new Map();
         this.scriptFiles = new Map();
         this.files = new Map(builtins);
         this.uris = new Map();
         const addScript = script => {
-            const file = virtualFile(script.uri, '.ts');
+            const file = virtualFile(script.uri, isEScriptDeclaration(script.uri) ? '.d.ts' : '.ts');
             this.scripts.set(script.uri, file);
             this.scriptFiles.set(file, { text: script.text, version: 1 });
             this.uris.set(file, script.uri);
@@ -157,7 +159,7 @@ class ScriptService {
             return [...this.languageService.getSyntacticDiagnostics(this.file),
                 ...this.languageService.getSemanticDiagnostics(this.file).filter(diagnostic =>
                     !isAllowedNullAssignment(diagnostic) && !(hasThisDirective && diagnostic.code === 2683)),
-                ...(sourceFile ? compatibilityDiagnostics(sourceFile) : [])];
+                ...(sourceFile && !isEScriptDeclaration(this.uri) ? compatibilityDiagnostics(sourceFile) : [])];
         } finally {
             this.options.siebelThisComments = true;
         }
