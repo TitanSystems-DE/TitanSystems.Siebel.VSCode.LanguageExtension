@@ -1,6 +1,7 @@
 'use strict';
 const vscode = require('vscode');
 const { ScriptService, ts } = require('./service');
+const { createMetadataProvider } = require('./metadata');
 
 function documentation(parts, tags = []) {
     const result = new vscode.MarkdownString(ts.displayPartsToString(parts || []));
@@ -39,7 +40,7 @@ function activate(context) {
     const output = vscode.window.createOutputChannel('Siebel eScript');
     const diagnostics = vscode.languages.createDiagnosticCollection('escript');
     const models = new Map();
-    const declarations = new Map();
+    const metadataProviders = new Map();
     const timers = new Map();
     let generation = 0;
     let disposed = false;
@@ -51,24 +52,6 @@ function activate(context) {
     const error = err => output.appendLine(`[Error] ${err && err.stack || err}`);
     async function safe(run, fallback) { try { return await run(); } catch (err) { error(err); return fallback; } }
 
-    async function customTypes(document) {
-        const folder = vscode.workspace.getWorkspaceFolder(document.uri);
-        const files = configuration(document).get('typeDefinitionFiles', []);
-        if (!folder || !files.length) return [];
-        const key = folder.uri.toString() + JSON.stringify(files);
-        if (!declarations.has(key)) {
-            declarations.set(key, Promise.all(files.map(async relative => {
-                if (typeof relative !== 'string' || !relative.endsWith('.d.ts') || relative.startsWith('/') || relative.includes(':') || relative.split(/[\\/]/).includes('..')) {
-                    throw new Error('escript.typeDefinitionFiles must contain workspace-relative .d.ts paths: ' + relative);
-                }
-                const uri = vscode.Uri.joinPath(folder.uri, ...relative.split(/[\\/]/));
-                const open = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
-                const text = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-                return { uri: uri.toString(), text };
-            })));
-        }
-        return declarations.get(key);
-    }
     async function siblingScripts(document) {
         const directory = directoryUri(document.uri);
         const entries = await vscode.workspace.fs.readDirectory(directory);
@@ -80,6 +63,17 @@ function activate(context) {
                 const text = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
                 return { uri: uri.toString(), text };
             }));
+    }
+    function metadataProvider(document) {
+        const mode = configuration(document).get('metadataProvider', 'none');
+        const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+        const key = `${folder?.uri.toString() || ''}|${mode}`;
+        if (!metadataProviders.has(key)) metadataProviders.set(key, createMetadataProvider(mode, {
+            workspaceUri: folder?.uri,
+            fs: { readFile: uri => vscode.workspace.fs.readFile(uri), joinPath: (base, ...parts) => vscode.Uri.joinPath(base, ...parts) },
+            log: message => output.appendLine(message),
+        }));
+        return metadataProviders.get(key);
     }
     async function globalDeclarationScripts() {
         const uris = new Map();
@@ -104,19 +98,16 @@ function activate(context) {
         if (!result) {
             const requestedGeneration = generation;
             // Missing optional files must not disable the built-in language features.
-            const [extra, scripts, globalDeclarations] = await Promise.all([
-                safe(() => customTypes(document), []),
+            const [scripts, globalDeclarations, metadata] = await Promise.all([
                 safe(() => siblingScripts(document), []),
                 safe(() => globalDeclarationScripts(), []),
+                safe(() => metadataProvider(document).snapshot(), undefined),
             ]);
             if (disposed || !eligible(document)) return undefined;
             if (requestedGeneration !== generation) return model(document);
             result = models.get(key);
             if (!result) {
-                // Keep executable siblings and workspace-global declarations in
-                // separate inputs. Only same-directory .escript files may enter
-                // the shared runtime script scope.
-                result = new ScriptService(key, document.getText(), { strict: configuration(document).get('strict', true) }, [...extra, ...globalDeclarations], scripts);
+                result = new ScriptService(key, document.getText(), { strict: configuration(document).get('strict', true), metadata }, [...scripts, ...globalDeclarations]);
                 result.directoryKey = directoryKey(document.uri);
                 models.set(key, result);
             }
@@ -172,7 +163,7 @@ function activate(context) {
     function reset() {
         generation++;
         for (const service of models.values()) service.dispose();
-        models.clear(); declarations.clear();
+        models.clear();
         for (const document of vscode.workspace.textDocuments) schedule(document);
     }
     function location(service, entry) {
@@ -307,29 +298,32 @@ function activate(context) {
     }));
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(document => {
         if (eligible(document)) declarationScript(document.uri) ? reset() : invalidateDirectory(document.uri);
-        else if (document.uri.path.endsWith('.d.ts')) reset();
     }));
     context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
         if (eligible(event.document)) declarationScript(event.document.uri) ? reset() : updateDirectory(event.document);
-        else if (event.document.uri.path.endsWith('.d.ts')) reset();
     }));
     context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(document => {
         const key = document.uri.toString();
         clearTimeout(timers.get(key)); timers.delete(key);
         models.get(key)?.dispose(); models.delete(key);
         diagnostics.delete(document.uri);
-        if (document.uri.path.endsWith('.d.ts') || declarationScript(document.uri)) reset();
+        if (declarationScript(document.uri)) reset();
         else if (document.languageId === 'escript') invalidateDirectory(document.uri);
     }));
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('escript')) reset(); }));
-    const watcher = vscode.workspace.createFileSystemWatcher('**/*.d.ts');
-    context.subscriptions.push(watcher, watcher.onDidChange(reset), watcher.onDidCreate(reset), watcher.onDidDelete(reset));
     const scriptWatcher = vscode.workspace.createFileSystemWatcher('**/*.escript');
     const scriptChanged = uri => declarationScript(uri) ? reset() : invalidateDirectory(uri);
     context.subscriptions.push(scriptWatcher,
         scriptWatcher.onDidChange(scriptChanged),
         scriptWatcher.onDidCreate(scriptChanged),
         scriptWatcher.onDidDelete(scriptChanged));
+    const metadataWatcher = vscode.workspace.createFileSystemWatcher('**/{connection-shim.ts,types/**/*.ts}');
+    const metadataChanged = () => {
+        for (const provider of metadataProviders.values()) provider.invalidate();
+        reset();
+    };
+    context.subscriptions.push(metadataWatcher,
+        metadataWatcher.onDidChange(metadataChanged), metadataWatcher.onDidCreate(metadataChanged), metadataWatcher.onDidDelete(metadataChanged));
     context.subscriptions.push(vscode.commands.registerCommand('escript.restartLanguageService', () => {
         reset(); output.appendLine('Language service restarted.');
     }));
@@ -338,7 +332,7 @@ function activate(context) {
         for (const timer of timers.values()) clearTimeout(timer);
         timers.clear();
         for (const service of models.values()) service.dispose();
-        models.clear(); declarations.clear();
+        models.clear(); metadataProviders.clear();
     } });
     for (const document of vscode.workspace.textDocuments) schedule(document);
     output.appendLine(`Siebel eScript activated; bundled TypeScript ${ts.version}, folder-scoped scripts, static with-scopes, server/ST types.`);

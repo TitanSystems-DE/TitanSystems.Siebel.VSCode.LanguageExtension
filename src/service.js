@@ -77,7 +77,7 @@ function compatibilityDiagnostics(sourceFile) {
             return;
         }
         if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
-            report(node, 'TypeScript interface and type declarations are not supported in Siebel eScript files. Add shared declarations to a configured .d.ts file.');
+            report(node, 'TypeScript interface and type declarations are not supported in executable Siebel eScript files. Add shared declarations to a .d.escript file.');
             return;
         }
         if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression?.(node)) {
@@ -96,13 +96,19 @@ function isAllowedNullAssignment(diagnostic) {
     return /type 'null' is not assignable to (?:parameter of )?type/i.test(message);
 }
 
+function escriptDiagnostic(diagnostic) {
+    return diagnostic.code === 7006
+        ? { ...diagnostic, category: ts.DiagnosticCategory.Warning }
+        : diagnostic;
+}
+
 const virtualFile = (uri, extension) => path.posix.join(
     typesRoot, '__virtual__', crypto.createHash('sha256').update(uri).digest('hex') + extension,
 );
 
 /** One language service per active script, with sibling scripts sharing its global scope. */
 class ScriptService {
-    constructor(uri, text, options = {}, declarations = [], scripts = []) {
+    constructor(uri, text, options = {}, scripts = []) {
         this.uri = uri;
         // Declaration scripts use a virtual .d.ts name so TypeScript applies ambient
         // declaration semantics. No source rewriting is needed, keeping offsets stable.
@@ -129,11 +135,6 @@ class ScriptService {
         for (const script of scripts) if (script.uri !== uri) addScript(script);
         this.text = text;
         this.version = 1;
-        for (const declaration of declarations) {
-            const file = virtualFile(declaration.uri, '.d.ts');
-            this.files.set(file, declaration.text);
-            this.uris.set(file, declaration.uri);
-        }
         this.options = {
             siebelEScript: true, noLib: true, types: [], noEmit: true,
             strict: options.strict !== false, useUnknownInCatchVariables: false,
@@ -141,6 +142,7 @@ class ScriptService {
             moduleDetection: ts.ModuleDetectionKind.Legacy,
             ignoreDeprecations: '6.0', skipLibCheck: false,
         };
+        this.metadata = options.metadata;
         const read = file => {
             file = normalizePath(file);
             return this.scriptFiles.get(file)?.text ?? this.files.get(file);
@@ -175,18 +177,21 @@ class ScriptService {
     dispose() { this.languageService.dispose(); }
     diagnostics() {
         const sourceFile = this.languageService.getProgram()?.getSourceFile(this.file);
-        const hasThisDirective = /^\s*\/\/\s*(?:@this\s*[:=]|this\s*:)[ \t]*[A-Za-z_$][\w$]*\s*$/m.test(this.text);
+        const hasThisDirective = /^\s*\/\/\s*(?:@this\s*[:=]|this\s*:)[ \t]*[A-Za-z_$][\w$]*[ \t]*;?[ \t]*$/m.test(this.text);
         this.options.siebelThisComments = false;
         try {
             return [...this.languageService.getSyntacticDiagnostics(this.file),
                 ...this.languageService.getSemanticDiagnostics(this.file).filter(diagnostic =>
                     !isAllowedNullAssignment(diagnostic) && !(hasThisDirective && diagnostic.code === 2683)),
-                ...(sourceFile && !isEScriptDeclaration(this.uri) ? compatibilityDiagnostics(sourceFile) : [])];
+                ...(sourceFile && !isEScriptDeclaration(this.uri) ? compatibilityDiagnostics(sourceFile) : [])]
+                .map(escriptDiagnostic);
         } finally {
             this.options.siebelThisComments = true;
         }
     }
     completions(position, options = {}) {
+        const repository = this.repositoryCompletions(position);
+        if (repository) return repository;
         const result = this.languageService.getCompletionsAtPosition(this.file, position, {
             includeCompletionsForModuleExports: false,
             includeCompletionsWithInsertText: true,
@@ -197,6 +202,75 @@ class ScriptService {
             result.entries = result.entries.filter(entry => !hiddenCompletionNames.has(entry.name) && !(typePosition && entry.name === 'void'));
         }
         return result;
+    }
+    repositoryCompletions(position) {
+        const metadata = this.metadata;
+        if (!metadata || !metadata.capabilities) return undefined;
+        const source = this.languageService.getProgram()?.getSourceFile(this.file);
+        if (!source) return undefined;
+        let target;
+        const visit = node => {
+            if (position < node.getFullStart() || position > node.end + 1) return;
+            if (ts.isCallExpression(node) && node.arguments.length && position >= node.arguments[0].getStart(source) && position <= node.arguments[0].end + 1) target = node;
+            ts.forEachChild(node, visit);
+        };
+        visit(source);
+        if (!target || !ts.isPropertyAccessExpression(target.expression)) return undefined;
+        const method = target.expression.name.text;
+        let names;
+        if (method === 'GetBusObject' && metadata.capabilities.businessObjects) {
+            names = metadata.businessObjects;
+        } else if (method === 'GetBusComp' && metadata.capabilities.businessComponents) {
+            const identity = this.repositoryIdentity(target.expression.expression, source, new Set());
+            names = identity?.kind === 'BusObject' ? metadata.businessComponents.get(identity.name) : undefined;
+            if (!names) names = [...new Set([...metadata.businessComponents.values()].flat().concat([...metadata.fields.keys()]))];
+        } else if (new Set(['ActivateField', 'GetFieldValue', 'GetFormattedFieldValue', 'SetFieldValue', 'SetFormattedFieldValue', 'SetSearchSpec']).has(method) && metadata.capabilities.fields) {
+            const identity = this.repositoryIdentity(target.expression.expression, source, new Set());
+            if (identity?.kind === 'BusComp') names = metadata.fields.get(identity.name);
+        }
+        if (!names) return undefined;
+        const argument = target.arguments[0];
+        const start = ts.isStringLiteralLike(argument) ? argument.getStart(source) + 1 : argument.getStart(source);
+        const length = Math.max(0, Math.min(position, argument.end) - start);
+        return {
+            isGlobalCompletion: false, isMemberCompletion: false, isNewIdentifierLocation: false,
+            entries: [...new Set(names)].sort((a, b) => a.localeCompare(b)).map(name => ({
+                name, kind: 'string', kindModifiers: '', sortText: '0', insertText: name,
+                replacementSpan: { start, length },
+            })),
+        };
+    }
+    repositoryIdentity(expression, source, seen) {
+        if (!expression || seen.has(expression)) return undefined;
+        seen.add(expression);
+        if (ts.isParenthesizedExpression(expression)) return this.repositoryIdentity(expression.expression, source, seen);
+        if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression)) {
+            const method = expression.expression.name.text;
+            const first = expression.arguments[0];
+            if (method === 'GetBusObject' && first && ts.isStringLiteralLike(first)) return { kind: 'BusObject', name: first.text };
+            if (method === 'GetBusComp' && first && ts.isStringLiteralLike(first)) return { kind: 'BusComp', name: first.text };
+        }
+        if (ts.isIdentifier(expression)) {
+            const checker = this.languageService.getProgram()?.getTypeChecker();
+            const symbol = checker?.getSymbolAtLocation(expression);
+            for (const declaration of symbol?.declarations || []) {
+                if (ts.isVariableDeclaration(declaration) && declaration.initializer) {
+                    const result = this.repositoryIdentity(declaration.initializer, source, seen);
+                    if (result) return result;
+                }
+            }
+            // Preserve identity through a simple assignment that precedes the use.
+            let latest;
+            const find = node => {
+                if (node.getStart(source) >= expression.getStart(source)) return;
+                if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+                    ts.isIdentifier(node.left) && node.left.text === expression.text) latest = node.right;
+                ts.forEachChild(node, find);
+            };
+            find(source);
+            if (latest) return this.repositoryIdentity(latest, source, seen);
+        }
+        return undefined;
     }
     completionDetails(position, entry) {
         return this.languageService.getCompletionEntryDetails(this.file, position, entry.name, {}, entry.source, {}, entry.data);

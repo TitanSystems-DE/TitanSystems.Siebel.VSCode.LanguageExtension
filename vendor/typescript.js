@@ -77097,7 +77097,7 @@ function createTypeChecker(host) {
     if (cache.has(container)) return cache.get(container) || void 0;
     cache.set(container, false);
     const leadingText = sourceFile.text.slice(container.pos, container.getStart(sourceFile));
-    const match = /(?:^|\r?\n)[ \t]*\/\/[ \t]*(?:@this[ \t]*[:=][ \t]*|this[ \t]*:[ \t]*)([A-Za-z_$][\w$]*)[ \t]*(?:\r?\n)[ \t]*$/.exec(leadingText);
+    const match = /(?:^|\r?\n)[ \t]*\/\/[ \t]*(?:@this[ \t]*[:=][ \t]*|this[ \t]*:[ \t]*)([A-Za-z_$][\w$]*)[ \t]*;?[ \t]*(?:\r?\n)[ \t]*$/.exec(leadingText);
     if (!match) return void 0;
     const symbol = globals.get(escapeLeadingUnderscores(match[1]));
     if (!symbol || !(symbol.flags & 788968 /* Type */)) return void 0;

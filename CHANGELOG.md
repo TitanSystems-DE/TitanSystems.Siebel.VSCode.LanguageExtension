@@ -1,5 +1,17 @@
 # Unreleased
 
+# 0.9.8
+
+- Add optional repository-aware IntelliSense with provider modes `none`, `endoit`, and the prepared `native` extension point.
+- Read Business Objects, Business Components, and fields safely from Endoit-generated workspace metadata without executing generated TypeScript.
+- Complete repository names for `GetBusObject`, `GetBusComp`, `ActivateField`, `GetFieldValue`, `GetFormattedFieldValue`, `SetFieldValue`, `SetFormattedFieldValue`, and `SetSearchSpec`.
+- Preserve Business Object and Business Component repository identities through inferred initializers and simple variable assignments.
+- Cache repository metadata, invalidate it when generated files change, and keep regular eScript features available when metadata is missing or malformed.
+- Accept an optional trailing semicolon in `// @this: Type;`, `// @this = Type;`, and `// this: Type;` declarations.
+- Remove configurable workspace `.d.ts` loading and watch logic; project declarations are now supplied exclusively through workspace `.d.escript` files.
+- Report implicit-any function parameters (`7006`) as warnings instead of errors.
+- Add regression coverage and documentation for repository completion, provider behavior, `.d.escript`-only declarations, trailing-semicolon `this` declarations, and diagnostic severity.
+
 # 0.9.7
 
 - Load every `.d.escript` file recursively from the workspace and make its declarations available to `.escript` files in all directories.

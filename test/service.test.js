@@ -5,11 +5,38 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { ScriptService, ts } = require('../src/service');
 const prefix = 'var bc: BusComp = TheApplication().GetBusObject("Account").GetBusComp("Account");\n';
-function fixture(marked, extras, scripts) {
+function fixture(marked, scripts) {
  const offset = marked.indexOf('/*cursor*/');
- const s = new ScriptService('file:///workspace/Account.escript', marked.replace('/*cursor*/',''), {}, extras, scripts);
+ const s = new ScriptService('file:///workspace/Account.escript', marked.replace('/*cursor*/',''), {}, scripts);
  return { s, offset };
 }
+const repositoryMetadata = {
+ capabilities:{businessObjects:true,businessComponents:true,fields:true,businessServices:false,serviceMethods:false,businessComponentMethods:false},
+ businessObjects:['Account','Contact'],
+ businessComponents:new Map([['Account',['Account','Contact']]]),
+ fields:new Map([['Account',['Id','Name','Account Status']]]),
+};
+function metadataFixture(marked) {
+ const offset=marked.indexOf('/*cursor*/');
+ const s=new ScriptService('file:///workspace/Account.escript',marked.replace('/*cursor*/',''),{metadata:repositoryMetadata});
+ return {s,offset};
+}
+test('repository metadata completes Business Objects and scoped Business Components',()=>{
+ let value=metadataFixture('TheApplication().GetBusObject("/*cursor*/');
+ assert.deepEqual(value.s.completions(value.offset).entries.map(e=>e.name),['Account','Contact']);value.s.dispose();
+ value=metadataFixture('var bo = TheApplication().GetBusObject("Account");\nbo.GetBusComp("/*cursor*/');
+ assert.deepEqual(value.s.completions(value.offset).entries.map(e=>e.name),['Account','Contact']);value.s.dispose();
+});
+test('repository field completion supports field APIs and identity propagation',()=>{
+ for(const method of ['ActivateField','GetFieldValue','GetFormattedFieldValue','SetFieldValue','SetFormattedFieldValue','SetSearchSpec']) {
+  const {s,offset}=metadataFixture(`var bo = TheApplication().GetBusObject("Account");\nvar bc1 = bo.GetBusComp("Account");\nvar bc2 = bc1;\nbc2.${method}("/*cursor*/`);
+  assert.deepEqual(s.completions(offset).entries.map(e=>e.name),['Account Status','Id','Name'],method);s.dispose();
+ }
+});
+test('unknown repository identity keeps ordinary completion stable',()=>{
+ const {s,offset}=metadataFixture('var bc = getSomethingAtRuntime();\nbc.GetFieldValue("/*cursor*/');
+ assert.doesNotThrow(()=>s.completions(offset));s.dispose();
+});
 test('real eScript example and built-in declarations compile without standard libraries', () => {
  const s = new ScriptService('file:///Account.escript',fs.readFileSync(path.join(__dirname,'../examples/Account.escript'),'utf8'));
  assert.deepEqual(s.diagnostics(),[]);
@@ -69,6 +96,13 @@ test('TypeScript-only type annotations produce Siebel compatibility diagnostics'
  assert(diagnostics.some(d=>String(d.messageText).includes('typeless')));
  s.dispose();
 });
+test('implicit any function parameters are warnings instead of errors', () => {
+ const {s}=fixture('function Untyped(parameter) { return parameter; }');
+ const diagnostic=s.diagnostics().find(d=>d.code===7006);
+ assert(diagnostic);
+ assert.equal(diagnostic.category,ts.DiagnosticCategory.Warning);
+ s.dispose();
+});
 test('null can be assigned to every strongly typed eScript value', () => {
  const {s}=fixture('var bc: BusComp = null; bc = null; function accept(value: BusComp): BusComp { return null; } accept(null);');
  assert.deepEqual(s.diagnostics(),[]);
@@ -94,7 +128,7 @@ test('reference parameters use their unprefixed name inside the function', () =>
  s.dispose();
 });
 test('function header comments assign a local this type', () => {
- for(const directive of ['// @this: Service','// @this = Service','// this: Service']) {
+ for(const directive of ['// @this: Service','// @this = Service','// this: Service','// @this: Service;','// @this = Service;','// this: Service;']) {
   const {s,offset}=fixture(`${directive}\nfunction Test() { this.Inv/*cursor*/okeMethod("Run"); }`);
   const entries=s.completions(offset).entries;
   assert(entries.some(e=>e.name==='InvokeMethod'),directive);
@@ -106,7 +140,7 @@ test('function header comments assign a local this type', () => {
 test('comment-declared this includes top-level members from sibling scripts', () => {
  const helperUri='file:///workspace/Shared.escript';
  const source='var LocalProperty: chars = "local";\n// @this: Service\nfunction Test() { this.Shared/*cursor*/Method("ok"); this.SharedProperty; this.LocalProperty; }';
- const {s,offset}=fixture(source,[],[{
+ const {s,offset}=fixture(source,[{
   uri:helperUri,
   text:'function SharedMethod(value: chars): chars { return value; }\nvar SharedProperty: chars = "ready";',
  }]);
@@ -123,7 +157,7 @@ test('separate eScript objects cannot accidentally share global event declaratio
 test('scripts in the same directory share functions, objects and navigation', () => {
  const helperUri='file:///workspace/Shared.escript';
  const main='var value: chars = SharedMethod();\nSharedObject.Run();';
- const s=new ScriptService('file:///workspace/Main.escript',main,{},[],[{
+ const s=new ScriptService('file:///workspace/Main.escript',main,{},[{
   uri:helperUri,
   text:'function SharedMethod(): chars { return "ok"; }\nvar SharedObject = { Run: function(): void {} };',
  }]);
@@ -137,14 +171,6 @@ test('scripts in the same directory share functions, objects and navigation', ()
  assert(s.diagnostics().some(d=>d.code===2304));
  s.dispose();
 });
-test('additional declarations provide completions and definition URI mapping', () => {
- const uri='file:///workspace/types/custom.d.ts';
- const {s,offset}=fixture('Custom/*cursor*/Function();',[{uri,text:'/** Customer-specific function. */ declare function CustomFunction(): string;'}]);
- assert.equal(s.diagnostics().length,0);
- assert.equal(s.targetUri(s.definitions(offset)[0].fileName),uri);
- assert(ts.displayPartsToString(s.quickInfo(offset).documentation).includes('Customer-specific'));
- s.dispose();
-});
 test('.d.escript files use declaration validation and augment sibling scripts', () => {
  const declarationUri='file:///workspace/custom.d.escript';
  const declaration='interface Clib { WriteLn(arg: String): void; }';
@@ -154,7 +180,7 @@ test('.d.escript files use declaration validation and augment sibling scripts', 
  declared.dispose();
 
  const source='Clib.WriteLn("hello");';
- const script=new ScriptService('file:///workspace/Main.escript',source,{},[],[{
+ const script=new ScriptService('file:///workspace/Main.escript',source,{},[{
   uri:declarationUri,
   text:declaration,
  }]);

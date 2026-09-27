@@ -88,7 +88,7 @@ index 0567712..c8e8d4a 100644
 +        if (cache.has(container)) return cache.get(container) || undefined;
 +        cache.set(container, false);
 +        const leadingText = sourceFile.text.slice(container.pos, container.getStart(sourceFile));
-+        const match = /(?:^|\r?\n)[ \t]*\/\/[ \t]*(?:@this[ \t]*[:=][ \t]*|this[ \t]*:[ \t]*)([A-Za-z_$][\w$]*)[ \t]*(?:\r?\n)[ \t]*$/.exec(leadingText);
++        const match = /(?:^|\r?\n)[ \t]*\/\/[ \t]*(?:@this[ \t]*[:=][ \t]*|this[ \t]*:[ \t]*)([A-Za-z_$][\w$]*)[ \t]*;?[ \t]*(?:\r?\n)[ \t]*$/.exec(leadingText);
 +        if (!match) return undefined;
 +        const symbol = globals.get(escapeLeadingUnderscores(match[1]));
 +        if (!symbol || !(symbol.flags & SymbolFlags.Type)) return undefined;
