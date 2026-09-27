@@ -22,7 +22,7 @@ class MarkdownString {
  appendCodeblock(value,language){this.value+='```'+language+'\n'+value+'\n```';return this;}
 }
 class Document {
- constructor(text,name='Account.escript'){this.text=text;this.uri=Uri.parse('file:///workspace/'+name);this.languageId='escript';this.version=1;this.isClosed=false;}
+ constructor(text,name='Account.escript',languageId='escript'){this.text=text;this.uri=Uri.parse('file:///workspace/'+name);this.languageId=languageId;this.version=1;this.isClosed=false;}
  getText(){return this.text;}
  positionAt(offset){const lines=this.text.slice(0,offset).split('\n');return new Position(lines.length-1,lines.at(-1).length);}
  offsetAt(p){const lines=this.text.split('\n');return lines.slice(0,p.line).reduce((n,l)=>n+l.length+1,0)+p.character;}
@@ -120,5 +120,35 @@ test('.d.escript documents are validated globally across directories',async()=>{
   fake.events.onDidChangeTextDocument({document:declaration});
   await wait();
   assert(fake.diagnostics.get(script.uri.toString()).some(d=>d.code===2339));
+ } finally {for(const d of context.subscriptions.toReversed())d.dispose();}
+});
+test('workspace .d.ts files are ignored',async()=>{
+ const declaration=new Document('declare function TypeScriptOnly(): string;','types/custom.d.ts','typescript');
+ const script=new Document('TypeScriptOnly();','scripts/Main.escript');
+ const fake=stub([declaration,script]),context={subscriptions:[]};
+ const original=Module._load;let extension;
+ try {
+  delete require.cache[require.resolve('../src/extension')];
+  Module._load=function(name,...args){return name==='vscode'?fake.api:original.call(this,name,...args);};
+  extension=require('../src/extension');
+ } finally {Module._load=original;}
+ try {
+  extension.activate(context);await wait();
+  assert(fake.diagnostics.get(script.uri.toString()).some(d=>d.code===2304));
+ } finally {for(const d of context.subscriptions.toReversed())d.dispose();}
+});
+test('implicit any parameter diagnostics are exposed as VS Code warnings',async()=>{
+ const doc=new Document('function Untyped(parameter) { return parameter; }');
+ const fake=stub(doc),context={subscriptions:[]};
+ const original=Module._load;let extension;
+ try {
+  delete require.cache[require.resolve('../src/extension')];
+  Module._load=function(name,...args){return name==='vscode'?fake.api:original.call(this,name,...args);};
+  extension=require('../src/extension');
+ } finally {Module._load=original;}
+ try {
+  extension.activate(context);await wait();
+  const diagnostic=fake.diagnostics.get(doc.uri.toString()).find(d=>d.code===7006);
+  assert(diagnostic);assert.equal(diagnostic.severity,fake.api.DiagnosticSeverity.Warning);
  } finally {for(const d of context.subscriptions.toReversed())d.dispose();}
 });

@@ -35,7 +35,7 @@ test('Windows host: normalized compiler paths load original script and packaged 
  }finally{s.dispose();}
 
  const source='function Test(): chars { return "ok"; }';
- const duplicate=new ScriptService('file:///C:/Workspace/Scripts/Main.escript',source,{},[],[{
+ const duplicate=new ScriptService('file:///C:/Workspace/Scripts/Main.escript',source,{},[{
   uri:'file:///c:/workspace/scripts/MAIN.escript',
   text:source,
  }]);

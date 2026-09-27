@@ -4,3 +4,4 @@ package-lock.json
 **/*.vsix
 **/*.zip
 .git/**
+titansystems_repository_metadata_codex_task.md

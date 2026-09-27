@@ -8,6 +8,7 @@ Language support for **Siebel eScript** in Visual Studio Code. The extension add
 
 - Syntax highlighting and a dedicated icon for `.escript` files
 - Siebel API completion with signatures and inline documentation
+- Optional repository-aware completion for Business Objects, Business Components, and fields
 - Type-aware completion inside `with` blocks
 - Shared functions, variables, and objects across `.escript` files in the same directory
 - Optional `this` type declarations through function header comments
@@ -16,7 +17,6 @@ Language support for **Siebel eScript** in Visual Studio Code. The extension add
 - Document formatting, outline, and code folding
 - Built-in Siebel and ST runtime declarations
 - Automatic workspace-wide project declarations from `.d.escript` files
-- Support for project-specific `.d.ts` declaration files
 - Native eScript types such as `chars`, `float`, and `bool`
 - Siebel reference parameters declared with an `&` prefix
 - Server-side `Clib` APIs and the `Buffer`, `ClibTime`, and `ClibDivisionResult` types
@@ -86,6 +86,8 @@ function UpdateStatus(recordId: chars, &status: chars) {
 
 Inside the function, use the parameter without the prefix—in this example, `status`. Completion, diagnostics, navigation, references, and signature help treat it as a normal local parameter. The `&` belongs only in the function declaration; calls use the regular argument syntax.
 
+Parameters without an explicit type remain valid eScript. In strict mode they produce warning `7006` instead of a hard error, allowing working but less precisely typed scripts to remain usable.
+
 ### Clib and buffers
 
 The server-side `Clib` object includes declarations for Oracle-documented file and directory operations, file I/O, string and memory operations, mathematics, date and time handling, character classification, error handling, and array search and sorting. Related declarations include `FilePointer`, `Buffer`, `ClibTime`, and `ClibDivisionResult`.
@@ -135,7 +137,7 @@ interface Clib {
 }
 ```
 
-The declarations are automatically available to every `.escript` file in the workspace, regardless of its directory. Normal `.escript` source files still share executable declarations only with files in the same directory. Unlike configured `.d.ts` files, `.d.escript` files do not need to be listed in the settings.
+The declarations are automatically available to every `.escript` file in the workspace, regardless of its directory. Normal `.escript` source files still share executable declarations only with files in the same directory. Workspace `.d.ts` files are intentionally ignored.
 
 ## Declaring the Type of `this`
 
@@ -154,6 +156,8 @@ The preferred syntax is `// @this: Type`. These alternatives are also supported:
 // @this = Service
 // this: Service
 ```
+
+All three forms may optionally end with a semicolon, for example `// @this: Service;`.
 
 The declaration applies only to the function directly below the comment. IntelliSense for `this` combines:
 
@@ -174,7 +178,7 @@ function Receive(Inputs: PropertySet, Outputs: PropertySet) {
 }
 ```
 
-The named type must exist in the built-in declarations or in a configured custom declaration file. Without a header comment, `this` remains intentionally untyped.
+The named type must exist in the built-in declarations or in a workspace `.d.escript` file. Without a header comment, `this` remains intentionally untyped.
 
 ## Configuration
 
@@ -184,7 +188,7 @@ The built-in Siebel and runtime declarations are loaded automatically.
 | --- | --- | --- |
 | `escript.strict` | `true` | Enables strict type checking. This does not enable JavaScript runtime strict mode. |
 | `escript.maxProblems` | `100` | Maximum number of diagnostics shown per file. |
-| `escript.typeDefinitionFiles` | `[]` | Workspace-relative `.d.ts` files containing project-specific declarations. |
+| `escript.metadataProvider` | `none` | Optional repository metadata provider: `none`, `endoit`, or `native`. |
 
 Example `.vscode/settings.json`:
 
@@ -192,13 +196,28 @@ Example `.vscode/settings.json`:
 {
   "escript.strict": true,
   "escript.maxProblems": 100,
-  "escript.typeDefinitionFiles": [
-    "types/company.d.ts"
-  ]
+  "escript.metadataProvider": "none"
 }
 ```
 
-Configured `.d.ts` files must be listed explicitly. Imports, npm type packages, and triple-slash references are not resolved automatically. A `.d.ts` or `.d.escript` file supplies editor type information and is never executed.
+Use `.d.escript` files for project-specific declarations. Workspace `.d.ts` files, imports, npm type packages, and triple-slash references are not loaded. A `.d.escript` file supplies editor type information and is never executed.
+
+### Repository metadata
+
+Repository metadata is optional and is used only to improve completion; missing or stale metadata does not produce diagnostics.
+
+- `none` is the default and preserves the normal eScript behavior without repository metadata.
+- `endoit` reads metadata generated in the current workspace by **Endoit Siebel Script And Web Template Editor**.
+- `native` reserves the provider boundary for a future direct TitanSystems Siebel integration. It currently supplies no metadata.
+
+To use Endoit metadata:
+
+1. Install and use **Siebel Script And Web Template Editor** by Endoit.
+2. Download the required Business Object, Business Component, and field metadata there.
+3. Set `escript.metadataProvider` to `endoit` for the workspace.
+4. Open an `.escript` file and use completion in calls such as `GetBusObject`, `GetBusComp`, `ActivateField`, `GetFieldValue`, `GetFormattedFieldValue`, `SetFieldValue`, `SetFormattedFieldValue`, and `SetSearchSpec`.
+
+The Endoit provider follows Endoit's active `connection-shim.ts` and reads the generated files below `types/<connection>/`. TitanSystems neither authenticates against Siebel nor opens its own Siebel connection in this mode. Changes to those generated files invalidate the metadata cache automatically. If files are absent or malformed, ordinary eScript language features continue to work; details are written to the **Siebel eScript** output channel.
 
 ## Command
 
@@ -212,7 +231,8 @@ Use **Siebel eScript: Restart Language Service** from the Command Palette after 
 | Sibling declarations are missing | Make sure the files have the `.escript` extension and are located in exactly the same directory. |
 | A global declaration is missing | Make sure the file ends with `.d.escript`, is inside the open workspace, and then restart the language service. |
 | `this` members are missing | Place `// @this: Type` immediately above the function and verify that the type name is available. |
-| A custom type is missing | Check the path in `escript.typeDefinitionFiles` and open **View → Output → Siebel eScript** for errors. |
+| A custom type is missing | Make sure it is declared in a `.d.escript` file inside the workspace and open **View → Output → Siebel eScript** for errors. |
+| Repository suggestions are missing | Select the `endoit` provider, download metadata with the Endoit extension, and check **View → Output → Siebel eScript**. |
 | The file icon is not visible | The active VS Code file icon theme decides whether language-provided icons are displayed. |
 
 To force the file association, add this to your VS Code settings:
@@ -227,7 +247,7 @@ To force the file association, add this to your VS Code settings:
 
 ## Current Limitations
 
-- The extension does not connect to a Siebel server, execute scripts, or deploy repository objects.
+- The extension does not currently connect to a Siebel server, execute scripts, or deploy repository objects. The `native` metadata provider is an unimplemented extension point.
 - Object-dependent `this` types are not inferred automatically; use `// @this: Type`.
 - Browser, Node.js, and modern ECMAScript globals such as `window`, `Promise`, and `Map` are intentionally excluded.
 - Some BLOB, conversion, and less common Siebel APIs may not yet be fully described.
@@ -236,6 +256,8 @@ To force the file association, add this to your VS Code settings:
 ## Feedback
 
 This is a pre-release. Please report missing APIs, unexpected diagnostics, and reproducible bugs in the [GitHub issue tracker](https://github.com/TitanSystems-DE/TitanSystems.Siebel.VSCode.LanguageExtension/issues).
+
+For questions, feedback, support, and other inquiries, contact [info@ttn-systems.de](mailto:info@ttn-systems.de).
 
 Include a small `.escript` example, the expected result, the actual result, and your VS Code version where possible.
 
