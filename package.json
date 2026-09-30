@@ -2,7 +2,7 @@
   "name": "siebel-escript",
   "displayName": "Siebel eScript (ST)",
   "description": "Siebel eScript language support with typed with-scopes, IntelliSense, documentation and diagnostics.",
-  "version": "0.9.9",
+  "version": "1.0.0",
   "publisher": "titansystems-de",
   "repository": {
     "type": "git",
@@ -63,6 +63,12 @@
         "path": "./syntaxes/escript.tmLanguage.json"
       }
     ],
+    "semanticTokenModifiers": [
+      {
+        "id": "referenceParameter",
+        "description": "A parameter passed by reference in Siebel eScript"
+      }
+    ],
     "commands": [
       {
         "command": "escript.restartLanguageService",
@@ -112,7 +118,15 @@
           "strings": "off"
         },
         "editor.suggestOnTriggerCharacters": true,
-        "editor.parameterHints.enabled": true
+        "editor.parameterHints.enabled": true,
+        "editor.semanticHighlighting.enabled": true,
+        "editor.semanticTokenColorCustomizations": {
+          "rules": {
+            "variable.referenceParameter": {
+              "underline": true
+            }
+          }
+        }
       }
     }
   },

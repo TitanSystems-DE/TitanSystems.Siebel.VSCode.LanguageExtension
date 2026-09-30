@@ -2,7 +2,7 @@
 
 Language support for **Siebel eScript** in Visual Studio Code. The extension adds Siebel-aware IntelliSense, diagnostics, navigation, formatting, and support for scripts split across multiple files.
 
-> **Pre-release:** This extension is under active development. Type definitions and diagnostics may still change before the first stable release.
+Version 1.0 provides stable Siebel eScript language support while the built-in declarations and diagnostics continue to evolve with real-world usage.
 
 ## Features
 
@@ -12,7 +12,7 @@ Language support for **Siebel eScript** in Visual Studio Code. The extension add
 - Type-aware completion inside `with` blocks
 - Shared functions, variables, and objects across `.escript` files in the same directory
 - Optional `this` type declarations through function header comments
-- Hover information, signature help, Go to Definition, and Find All References
+- Hover information with reference and workspace-extension markers, signature help, Go to Definition, and Find All References
 - Live syntax and type diagnostics
 - Document formatting, outline, and code folding
 - Built-in Siebel and ST runtime declarations
@@ -106,6 +106,8 @@ Inside the function, use the parameter without the prefix—in this example, `st
 
 Parameters without an explicit type remain valid eScript. In strict mode they produce warning `7006` instead of a hard error, allowing working but less precisely typed scripts to remain usable.
 
+Reference parameters are underlined in both the function header and function body. Their hover information starts with a compact `PassedByReference` marker so reference semantics remain visible away from the declaration.
+
 ### Clib and buffers
 
 The server-side `Clib` object includes declarations for Oracle-documented file and directory operations, file I/O, string and memory operations, mathematics, date and time handling, character classification, error handling, and array search and sorting. Related declarations include `FilePointer`, `Buffer`, `ClibTime`, and `ClibDivisionResult`.
@@ -156,6 +158,8 @@ interface Clib {
 ```
 
 The declarations are automatically available to every `.escript` file in the workspace, regardless of its directory. Normal `.escript` source files still share executable declarations only with files in the same directory. Workspace `.d.ts` files are intentionally ignored.
+
+Hover information for methods and properties supplied by workspace `.d.escript` files starts with an `Extension` marker. Built-in declarations shipped with this extension are not marked, making project-specific API additions easy to distinguish from the bundled Siebel and runtime API.
 
 ## Declaring the Type of `this`
 
@@ -273,7 +277,7 @@ To force the file association, add this to your VS Code settings:
 
 ## Feedback
 
-This is a pre-release. Please report missing APIs, unexpected diagnostics, and reproducible bugs in the [GitHub issue tracker](https://github.com/TitanSystems-DE/TitanSystems.Siebel.VSCode.LanguageExtension/issues).
+Please report missing APIs, unexpected diagnostics, and reproducible bugs in the [GitHub issue tracker](https://github.com/TitanSystems-DE/TitanSystems.Siebel.VSCode.LanguageExtension/issues).
 
 For questions, feedback, support, and other inquiries, contact [info@ttn-systems.de](mailto:info@ttn-systems.de).
 

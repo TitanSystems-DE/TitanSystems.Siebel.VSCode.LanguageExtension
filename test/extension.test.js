@@ -30,7 +30,8 @@ class Document {
 function stub(document){
  const documents=Array.isArray(document)?document:[document];
  document=documents[0];
- const providers={},events={},diagnostics=new Map(),logs=[];
+ const providers={},events={},diagnostics=new Map(),logs=[],decorations=[];
+ const editors=documents.map(document=>({document,setDecorations:(_type,ranges)=>decorations.push({document,ranges})}));
  const api={Position,Range,Uri,MarkdownString,
  CompletionItemKind:new Proxy({}, {get:(_,k)=>k}),SymbolKind:new Proxy({}, {get:(_,k)=>k}),DiagnosticSeverity:{Error:0,Warning:1},
  CompletionItem:class {constructor(label,kind){this.label=label;this.kind=kind;}},
@@ -38,13 +39,17 @@ function stub(document){
  Hover:class {constructor(contents,range){Object.assign(this,{contents,range});}},
  Location:class {constructor(uri,range){Object.assign(this,{uri,range});}},
  SignatureHelp:class {},
+ SemanticTokensLegend:class {constructor(tokenTypes,tokenModifiers){Object.assign(this,{tokenTypes,tokenModifiers});}},
+ SemanticTokensBuilder:class {constructor(){this.items=[];}push(range,type,modifiers){this.items.push({range,type,modifiers});}build(){return this.items;}},
  SignatureInformation:class {constructor(label,documentation){Object.assign(this,{label,documentation});}},
  ParameterInformation:class {constructor(label,documentation){Object.assign(this,{label,documentation});}},
  SnippetString:class {constructor(value){this.value=value;}},
  DocumentSymbol:class {constructor(name,detail,kind,range,selectionRange){Object.assign(this,{name,detail,kind,range,selectionRange});}},
  FoldingRange:class {constructor(start,end){Object.assign(this,{start,end});}},
  TextEdit:{replace:(range,newText)=>({range,newText})},
- window:{createOutputChannel:()=>({appendLine:s=>logs.push(s),dispose(){}})},
+ window:{visibleTextEditors:editors,createOutputChannel:()=>({appendLine:s=>logs.push(s),dispose(){}}),
+  createTextEditorDecorationType:options=>({options,dispose(){}}),
+  onDidChangeVisibleTextEditors:fn=>{events.onDidChangeVisibleTextEditors=fn;return disposable();}},
  workspace:{textDocuments:documents,getConfiguration:()=>({get:(_name,fallback)=>fallback}),getWorkspaceFolder:()=>({uri:Uri.parse('file:///workspace')}),
   fs:{readDirectory:async uri=>documents.filter(d=>path.posix.dirname(d.uri.path)===uri.path).map(d=>[path.posix.basename(d.uri.path),1]),readFile:async uri=>Buffer.from(documents.find(d=>d.uri.toString()===uri.toString()).getText())},
   findFiles:async pattern=>pattern==='**/*.d.escript'?documents.filter(d=>d.uri.path.toLowerCase().endsWith('.d.escript')).map(d=>d.uri):[],
@@ -56,7 +61,8 @@ function stub(document){
  for(const name of ['CompletionItem','Hover','Definition','Reference','SignatureHelp','DocumentFormattingEdit','DocumentSymbol','FoldingRange']) {
   api.languages['register'+name+'Provider']=(selector,provider,...triggers)=>{assert.equal(selector.language,'escript');providers[name]=provider;return disposable();};
  }
- return {api,providers,events,diagnostics,logs};
+ api.languages.registerDocumentSemanticTokensProvider=(selector,provider,legend)=>{assert.equal(selector.language,'escript');providers.SemanticTokens=provider;providers.SemanticTokensLegend=legend;return disposable();};
+ return {api,providers,events,diagnostics,logs,decorations};
 }
 test('extension activation, providers, live diagnostics and close lifecycle',async()=>{
  const text='var bc: BusComp = TheApplication().GetBusObject("Account").GetBusComp("Account");\nSharedHelper();\nwith(bc) {\n    ExecuteQuery("wrong");\n    GetFieldValue("Name");\n}\n';
@@ -150,5 +156,45 @@ test('implicit any parameter diagnostics are exposed as VS Code warnings',async(
   extension.activate(context);await wait();
   const diagnostic=fake.diagnostics.get(doc.uri.toString()).find(d=>d.code===7006);
   assert(diagnostic);assert.equal(diagnostic.severity,fake.api.DiagnosticSeverity.Warning);
+ } finally {for(const d of context.subscriptions.toReversed())d.dispose();}
+});
+test('reference parameters are underlined in declarations and function bodies',async()=>{
+ const doc=new Document('function Update(&status: chars) { status = "Done"; }');
+ const fake=stub(doc),context={subscriptions:[]};
+ const original=Module._load;let extension;
+ try {
+  delete require.cache[require.resolve('../src/extension')];
+  Module._load=function(name,...args){return name==='vscode'?fake.api:original.call(this,name,...args);};
+  extension=require('../src/extension');
+ } finally {Module._load=original;}
+ try {
+  extension.activate(context);await wait();
+  const latest=fake.decorations.filter(entry=>entry.document===doc).at(-1);
+  assert(latest);assert.equal(latest.ranges.length,2);
+  assert.deepEqual(latest.ranges.map(item=>doc.getText().split('\n')[item.start.line].slice(item.start.character,item.end.character)),['status','status']);
+  const semantic=await fake.providers.SemanticTokens.provideDocumentSemanticTokens(doc,{isCancellationRequested:false});
+  assert.equal(semantic.length,2);
+  assert(semantic.every(item=>item.type==='variable'&&item.modifiers.includes('referenceParameter')));
+  const hover=await fake.providers.Hover.provideHover(doc,doc.positionAt(doc.getText().lastIndexOf('status')+2),{isCancellationRequested:false});
+  assert.equal(hover.contents[0].value,'`PassedByReference`');
+ } finally {for(const d of context.subscriptions.toReversed())d.dispose();}
+});
+test('hover identifies workspace .d.escript methods as extensions but excludes bundled APIs',async()=>{
+ const declaration=new Document('interface CustomApiType { Run(): void; } declare const CustomApi: CustomApiType;','types/custom.d.escript');
+ const doc=new Document('CustomApi.Run(); Clib.WriteLn("built in");','Main.escript');
+ const fake=stub([doc,declaration]),context={subscriptions:[]};
+ const original=Module._load;let extension;
+ try {
+  delete require.cache[require.resolve('../src/extension')];
+  Module._load=function(name,...args){return name==='vscode'?fake.api:original.call(this,name,...args);};
+  extension=require('../src/extension');
+ } finally {Module._load=original;}
+ try {
+  extension.activate(context);await wait();
+  const token={isCancellationRequested:false};
+  const custom=await fake.providers.Hover.provideHover(doc,doc.positionAt(doc.getText().indexOf('Run')+1),token);
+  const bundled=await fake.providers.Hover.provideHover(doc,doc.positionAt(doc.getText().indexOf('WriteLn')+1),token);
+  assert.equal(custom.contents[0].value,'`Extension`');
+  assert(!bundled.contents.some(item=>item.value.includes('Extension')));
  } finally {for(const d of context.subscriptions.toReversed())d.dispose();}
 });

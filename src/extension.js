@@ -39,6 +39,8 @@ function activate(context) {
     const selector = { language: 'escript' };
     const output = vscode.window.createOutputChannel('Siebel eScript');
     const diagnostics = vscode.languages.createDiagnosticCollection('escript');
+    const referenceParameterDecoration = vscode.window.createTextEditorDecorationType({ textDecoration: 'underline' });
+    const semanticTokensLegend = new vscode.SemanticTokensLegend(['variable'], ['referenceParameter']);
     const models = new Map();
     const metadataProviders = new Map();
     const timers = new Map();
@@ -131,6 +133,11 @@ function activate(context) {
             return item;
         });
         diagnostics.set(document.uri, items);
+        for (const editor of vscode.window.visibleTextEditors) {
+            if (editor.document.uri.toString() === document.uri.toString()) {
+                editor.setDecorations(referenceParameterDecoration, result.referenceParameterSpans().map(span => range(document, span)));
+            }
+        }
     }
     function schedule(document) {
         if (!eligible(document) || disposed) return;
@@ -173,7 +180,19 @@ function activate(context) {
         return new vscode.Location(mapped ? vscode.Uri.parse(mapped) : vscode.Uri.file(entry.fileName), targetRange(text, entry.textSpan));
     }
 
-    context.subscriptions.push(output, diagnostics);
+    context.subscriptions.push(output, diagnostics, referenceParameterDecoration);
+    context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(selector, {
+        provideDocumentSemanticTokens: (document, token) => safe(async () => {
+            const builder = new vscode.SemanticTokensBuilder(semanticTokensLegend);
+            if (token.isCancellationRequested) return builder.build();
+            const service = await model(document);
+            if (!service || token.isCancellationRequested) return builder.build();
+            for (const span of service.referenceParameterSpans()) {
+                builder.push(range(document, span), 'variable', ['referenceParameter']);
+            }
+            return builder.build();
+        }),
+    }, semanticTokensLegend));
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider(selector, {
         async provideCompletionItems(document, position, token) {
             return safe(async () => {
@@ -215,10 +234,16 @@ function activate(context) {
         provideHover: (document, position, token) => safe(async () => {
             if (token.isCancellationRequested) return undefined;
             const service = await model(document);
-            const info = service && service.quickInfo(document.offsetAt(position));
+            const offset = document.offsetAt(position);
+            const info = service && service.quickInfo(offset);
             if (!info) return undefined;
             const signature = new vscode.MarkdownString().appendCodeblock(ts.displayPartsToString(info.displayParts), 'typescript');
-            return new vscode.Hover([signature, documentation(info.documentation, info.tags)], range(document, info.textSpan));
+            const contents = [];
+            if (service.isReferenceParameterAt(offset)) contents.push(new vscode.MarkdownString('`PassedByReference`'));
+            if (service.isWorkspaceExtensionAt(offset)) contents.push(new vscode.MarkdownString('`Extension`'));
+            contents.push(signature);
+            contents.push(documentation(info.documentation, info.tags));
+            return new vscode.Hover(contents, range(document, info.textSpan));
         }),
     }));
     context.subscriptions.push(vscode.languages.registerDefinitionProvider(selector, {
@@ -311,6 +336,9 @@ function activate(context) {
         else if (document.languageId === 'escript') invalidateDirectory(document.uri);
     }));
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('escript')) reset(); }));
+    context.subscriptions.push(vscode.window.onDidChangeVisibleTextEditors(editors => {
+        for (const editor of editors) if (eligible(editor.document)) schedule(editor.document);
+    }));
     const scriptWatcher = vscode.workspace.createFileSystemWatcher('**/*.escript');
     const scriptChanged = uri => declarationScript(uri) ? reset() : invalidateDirectory(uri);
     context.subscriptions.push(scriptWatcher,

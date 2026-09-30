@@ -1,5 +1,11 @@
 # Unreleased
 
+# 1.0.0 - 2026-09-30
+
+- Underline `&`-prefixed reference parameters in function declarations and throughout their function bodies.
+- Show a compact, background-highlighted `PassedByReference` badge at the top when hovering over a reference parameter declaration or usage.
+- Show a compact, background-highlighted `Extension` badge at the top when hovering over methods and properties contributed by workspace `.d.escript` files, excluding bundled declarations.
+
 # 0.9.9
 
 - Allow arbitrary properties to be read, assigned, and invoked on values typed as `Object` or inferred as `{}`, matching Siebel eScript's dynamic object behavior.

@@ -133,6 +133,20 @@ test('reference parameters use their unprefixed name inside the function', () =>
  assert(s.references(assignment).filter(reference=>reference.fileName===s.file).length>=3);
  const signature=s.signatureHelp(source.lastIndexOf('("one"')+1);
  assert.equal(signature.items[0].parameters[1].displayParts.map(part=>part.text).join(''),'param2: chars');
+ const underlined=s.referenceParameterSpans().map(span=>source.slice(span.start,span.start+span.length));
+ assert.deepEqual(underlined,['param2','param2','param2']);
+ assert.equal(s.isReferenceParameterAt(declaration+2),true);
+ assert.equal(s.isReferenceParameterAt(assignment+2),true);
+ assert.equal(s.isReferenceParameterAt(source.indexOf('param1')),false);
+ s.dispose();
+});
+test('reference parameter highlighting follows symbols rather than names', () => {
+ const source='function First(&value: chars) { value = "first"; } function Second(value: chars) { value = "second"; }';
+ const {s}=fixture(source);
+ const spans=s.referenceParameterSpans();
+ assert.equal(spans.length,2);
+ assert.deepEqual(spans.map(span=>source.slice(span.start,span.start+span.length)),['value','value']);
+ assert(spans.every(span=>span.start<source.indexOf('function Second')));
  s.dispose();
 });
 test('function header comments assign a local this type', () => {
@@ -212,6 +226,19 @@ test('Clib and Buffer declarations expose the documented server-side API groups'
 test('numeric API results support arithmetic and compound addition', () => {
  const {s}=fixture('var value: Number = Clib.rand();\nvar sum: float = value + 1;\nvalue += 1;\nvar count: Number = TheApplication().GetBusObject("Account").GetBusComp("Account").CountRecords();\ncount += 1;');
  assert.deepEqual(s.diagnostics(),[]);
+ s.dispose();
+});
+test('workspace extension marker only applies to methods and properties from .d.escript files', () => {
+ const declarationUri='file:///workspace/custom.d.escript';
+ const source='CustomApi.Run(); CustomApi.Name; Clib.WriteLn("built in"); CustomFunction();';
+ const s=new ScriptService('file:///workspace/Main.escript',source,{},[{
+  uri:declarationUri,
+  text:'interface CustomApiType { Run(): void; Name: chars; } declare const CustomApi: CustomApiType; declare function CustomFunction(): void;',
+ }]);
+ assert.equal(s.isWorkspaceExtensionAt(source.indexOf('Run')),true);
+ assert.equal(s.isWorkspaceExtensionAt(source.indexOf('Name')),true);
+ assert.equal(s.isWorkspaceExtensionAt(source.indexOf('WriteLn')),false);
+ assert.equal(s.isWorkspaceExtensionAt(source.indexOf('CustomFunction')),false);
  s.dispose();
 });
 test('SetProperty accepts string, numeric and Boolean values', () => {

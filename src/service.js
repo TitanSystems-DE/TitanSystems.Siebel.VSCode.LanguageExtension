@@ -292,6 +292,55 @@ class ScriptService {
     quickInfo(position) { return this.languageService.getQuickInfoAtPosition(this.file, position); }
     definitions(position) { return this.languageService.getDefinitionAtPosition(this.file, position) || []; }
     references(position) { return this.languageService.getReferencesAtPosition(this.file, position) || []; }
+    referenceParameterSpans() {
+        const program = this.languageService.getProgram();
+        const source = program?.getSourceFile(this.file);
+        const checker = program?.getTypeChecker();
+        if (!source || !checker) return [];
+        const parameters = new Set();
+        const spans = [];
+        const collectParameters = node => {
+            if (ts.isParameter(node) && ts.isIdentifier(node.name)) {
+                const prefix = this.text.slice(node.getStart(source), node.name.getStart(source));
+                if (prefix.includes('&')) {
+                    const symbol = checker.getSymbolAtLocation(node.name);
+                    if (symbol) parameters.add(symbol);
+                }
+            }
+            ts.forEachChild(node, collectParameters);
+        };
+        const collectReferences = node => {
+            if (ts.isIdentifier(node) && parameters.has(checker.getSymbolAtLocation(node))) {
+                spans.push({ start: node.getStart(source), length: node.getWidth(source) });
+            }
+            ts.forEachChild(node, collectReferences);
+        };
+        collectParameters(source);
+        if (parameters.size) collectReferences(source);
+        return spans;
+    }
+    isReferenceParameterAt(position) {
+        return this.referenceParameterSpans().some(span => position >= span.start && position < span.start + span.length);
+    }
+    isWorkspaceExtensionAt(position) {
+        const program = this.languageService.getProgram();
+        const source = program?.getSourceFile(this.file);
+        const checker = program?.getTypeChecker();
+        if (!source || !checker) return false;
+        const token = ts.getTokenAtPosition(source, position);
+        const symbol = token && checker.getSymbolAtLocation(token);
+        if (!symbol) return false;
+        const supportedDeclarations = new Set([
+            ts.SyntaxKind.MethodDeclaration, ts.SyntaxKind.MethodSignature,
+            ts.SyntaxKind.PropertyDeclaration, ts.SyntaxKind.PropertySignature,
+            ts.SyntaxKind.GetAccessor, ts.SyntaxKind.SetAccessor,
+        ]);
+        return (symbol.declarations || []).some(declaration => {
+            if (!supportedDeclarations.has(declaration.kind)) return false;
+            const uri = this.targetUri(declaration.getSourceFile().fileName);
+            return uri !== undefined && isEScriptDeclaration(uri);
+        });
+    }
     signatureHelp(position) { return this.languageService.getSignatureHelpItems(this.file, position, undefined); }
     format(options) {
         return this.languageService.getFormattingEditsForDocument(this.file, {
