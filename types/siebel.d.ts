@@ -334,6 +334,15 @@ interface BusComp {
     outPropSet?: PropertySet
   ): void;
   /**
+   * Calls a method with one or more string arguments.
+   * @param methodName - The name of the method.
+   * @param args - String arguments for the method.
+   */
+  InvokeMethod(
+    methodName: (chars | String),
+    ...args: (chars | String)[]
+  ): any;
+  /**
    * Moves the record pointer to the last record in a business component. Returns an boolean indicating if there is at least one record or not.
    */
   LastRecord(): (bool & Boolean);
@@ -460,9 +469,18 @@ interface Service {
    */
   InvokeMethod(
     methodName: (chars | String),
-    inPropSet: PropertySet,
-    outPropSet: PropertySet
+    inPropSet?: PropertySet,
+    outPropSet?: PropertySet
   ): void;
+  /**
+   * Calls a method with one or more string arguments.
+   * @param methodName - The name of the method.
+   * @param args - String arguments for the method.
+   */
+  InvokeMethod(
+    methodName: (chars | String),
+    ...args: (chars | String)[]
+  ): any;
   /**
    * Returns the name of a business service.
    */
@@ -480,9 +498,9 @@ interface Service {
   /**
    * Sets a value for a property of a business service.
    * @param propName - A string that contains the name of the property that Siebel CRM must modify.
-   * @param propValue - A string that contains the value that Siebel CRM sets in the property that the propName argument identifies.
+   * @param propValue - A string, number, or Boolean value that Siebel CRM sets in the property that the propName argument identifies.
    */
-  SetProperty(propName: (chars | String), propValue: (chars | String)): void;
+  SetProperty(propName: (chars | String), propValue: (chars | String) | (float | Number) | (bool | Boolean)): void;
 }
 
 interface PropertySet {
@@ -557,9 +575,9 @@ interface PropertySet {
   /**
    * Sets a value in the property of a property set.
    * @param propName - A string that contains the name of the property that Siebel CRM must modify.
-   * @param propValue - A string that contains the value that Siebel CRM sets in the property that the propName argument identifies.
+   * @param propValue - A string, number, or Boolean value that Siebel CRM sets in the property that the propName argument identifies.
    */
-  SetProperty(propName: (chars | String), propValue: (chars | String)): void;
+  SetProperty(propName: (chars | String), propValue: (chars | String) | (float | Number) | (bool | Boolean)): void;
   /**
    * Sets the value for the type attribute of a property set.
    * @param typeVal - A string that contains data that Siebel CRM must store in the type attribute.

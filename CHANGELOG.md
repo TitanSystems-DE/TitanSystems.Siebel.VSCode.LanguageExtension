@@ -1,5 +1,11 @@
 # Unreleased
 
+# 0.9.9
+
+- Allow arbitrary properties to be read, assigned, and invoked on values typed as `Object` or inferred as `{}`, matching Siebel eScript's dynamic object behavior.
+- Accept string, numeric, and Boolean values in `Service.SetProperty` and `PropertySet.SetProperty`.
+- Add regression coverage for dynamic object properties and the expanded `SetProperty` value types while retaining strict property checks for concrete Siebel and primitive types.
+
 # 0.9.8
 
 - Add optional repository-aware IntelliSense with provider modes `none`, `endoit`, and the prepared `native` extension point.
