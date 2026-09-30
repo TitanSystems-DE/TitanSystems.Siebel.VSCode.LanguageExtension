@@ -103,6 +103,14 @@ test('implicit any function parameters are warnings instead of errors', () => {
  assert.equal(diagnostic.category,ts.DiagnosticCategory.Warning);
  s.dispose();
 });
+test('Object and object literals allow dynamic Siebel eScript properties', () => {
+ const {s}=fixture('var inferred = {}; inferred.Test = "ok"; inferred.Added = 1; var dynamic: Object = new Object(); dynamic.Test = inferred.Added; dynamic.MissingMethod();');
+ assert.deepEqual(s.diagnostics(),[]);
+ s.update('var bc: BusComp = TheApplication().GetBusObject("Account").GetBusComp("Account"); bc.Test = 1; var text: chars = "ok"; text.Test = 1;');
+ const missingProperties=s.diagnostics().filter(d=>d.code===2339);
+ assert.equal(missingProperties.length,2);
+ s.dispose();
+});
 test('null can be assigned to every strongly typed eScript value', () => {
  const {s}=fixture('var bc: BusComp = null; bc = null; function accept(value: BusComp): BusComp { return null; } accept(null);');
  assert.deepEqual(s.diagnostics(),[]);
@@ -203,6 +211,38 @@ test('Clib and Buffer declarations expose the documented server-side API groups'
 });
 test('numeric API results support arithmetic and compound addition', () => {
  const {s}=fixture('var value: Number = Clib.rand();\nvar sum: float = value + 1;\nvalue += 1;\nvar count: Number = TheApplication().GetBusObject("Account").GetBusComp("Account").CountRecords();\ncount += 1;');
+ assert.deepEqual(s.diagnostics(),[]);
+ s.dispose();
+});
+test('SetProperty accepts string, numeric and Boolean values', () => {
+ const source=[
+  'var propertySet: PropertySet = TheApplication().NewPropertySet();',
+  'var service: Service = TheApplication().GetService("Test");',
+  'propertySet.SetProperty("Text", "value");',
+  'propertySet.SetProperty("Count", 42);',
+  'propertySet.SetProperty("Enabled", true);',
+  'service.SetProperty("Text", new String("value"));',
+  'service.SetProperty("Count", new Number(42));',
+  'service.SetProperty("Enabled", new Boolean(true));',
+ ].join('\n');
+ const {s}=fixture(source);
+ assert.deepEqual(s.diagnostics(),[]);
+ s.dispose();
+});
+test('BusComp and Service InvokeMethod support PropertySet and string argument overloads', () => {
+ const source=[
+  'var inputs: PropertySet = TheApplication().NewPropertySet();',
+  'var outputs: PropertySet = TheApplication().NewPropertySet();',
+  'var bc: BusComp = TheApplication().GetBusObject("Account").GetBusComp("Account");',
+  'var service: Service = TheApplication().GetService("Test");',
+  'bc.InvokeMethod("WithPropertySets", inputs, outputs);',
+  'service.InvokeMethod("WithPropertySets", inputs, outputs);',
+  'var bcResult = bc.InvokeMethod("WithStrings", "one", "two");',
+  'var serviceResult = service.InvokeMethod("WithStrings", "one", "two");',
+  'bc.InvokeMethod("WithoutArguments");',
+  'service.InvokeMethod("WithoutArguments");',
+ ].join('\n');
+ const {s}=fixture(source);
  assert.deepEqual(s.diagnostics(),[]);
  s.dispose();
 });

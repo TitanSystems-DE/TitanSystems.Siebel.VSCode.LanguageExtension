@@ -72,6 +72,24 @@ TypeScript-only types and constructs are not valid eScript. Use `chars` instead 
 
 The runtime annotations `String`, `Number`, and `Boolean` use the corresponding primitive eScript semantics. Values declared as `Number` therefore support arithmetic and compound operators such as `+`, `-`, `+=`, and `-=`.
 
+Values typed as `Object` and values inferred from an empty object literal are dynamic. Siebel eScript permits reading, assigning, and invoking properties that are not known statically:
+
+```typescript
+var options: Object = new Object();
+options.Enabled = true;
+
+var state = {};
+state.Count = 1;
+```
+
+Concrete Siebel types such as `BusComp` remain strictly checked. `Service.SetProperty` and `PropertySet.SetProperty` accept string, numeric, and Boolean values:
+
+```typescript
+Outputs.SetProperty("Name", "Example");
+Outputs.SetProperty("Count", 42);
+Outputs.SetProperty("Enabled", true);
+```
+
 `null` can be assigned to typed variables, passed to typed parameters, and returned from typed functions without adding a nullable type annotation.
 
 ### Reference parameters

@@ -96,6 +96,16 @@ function isAllowedNullAssignment(diagnostic) {
     return /type 'null' is not assignable to (?:parameter of )?type/i.test(message);
 }
 
+function isAllowedDynamicObjectProperty(diagnostic, sourceFile, checker) {
+    if (diagnostic.code !== 2339 || diagnostic.start === undefined || !sourceFile || !checker) return false;
+    let node = ts.getTokenAtPosition(sourceFile, diagnostic.start);
+    while (node && !ts.isPropertyAccessExpression(node)) node = node.parent;
+    if (!node) return false;
+    const receiver = checker.getTypeAtLocation(node.expression);
+    const receiverName = checker.typeToString(receiver);
+    return receiverName === 'Object' || receiverName === '{}';
+}
+
 function escriptDiagnostic(diagnostic) {
     return diagnostic.code === 7006
         ? { ...diagnostic, category: ts.DiagnosticCategory.Warning }
@@ -176,13 +186,17 @@ class ScriptService {
     }
     dispose() { this.languageService.dispose(); }
     diagnostics() {
-        const sourceFile = this.languageService.getProgram()?.getSourceFile(this.file);
+        const program = this.languageService.getProgram();
+        const sourceFile = program?.getSourceFile(this.file);
+        const checker = program?.getTypeChecker();
         const hasThisDirective = /^\s*\/\/\s*(?:@this\s*[:=]|this\s*:)[ \t]*[A-Za-z_$][\w$]*[ \t]*;?[ \t]*$/m.test(this.text);
         this.options.siebelThisComments = false;
         try {
             return [...this.languageService.getSyntacticDiagnostics(this.file),
                 ...this.languageService.getSemanticDiagnostics(this.file).filter(diagnostic =>
-                    !isAllowedNullAssignment(diagnostic) && !(hasThisDirective && diagnostic.code === 2683)),
+                    !isAllowedNullAssignment(diagnostic)
+                    && !isAllowedDynamicObjectProperty(diagnostic, sourceFile, checker)
+                    && !(hasThisDirective && diagnostic.code === 2683)),
                 ...(sourceFile && !isEScriptDeclaration(this.uri) ? compatibilityDiagnostics(sourceFile) : [])]
                 .map(escriptDiagnostic);
         } finally {
