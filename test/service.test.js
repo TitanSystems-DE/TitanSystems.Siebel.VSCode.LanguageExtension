@@ -159,6 +159,15 @@ test('function header comments assign a local this type', () => {
   s.dispose();
  }
 });
+test('a compatibility default assigns this while an explicit directive takes precedence', () => {
+ const compatible=new ScriptService('file:///workspace/Service.escript','function Test() { this.InvokeMethod("Run"); }',{thisType:'Service'});
+ assert.deepEqual(compatible.diagnostics(),[]);
+ const names=new Set(compatible.completions(compatible.text.indexOf('this.')+5).entries.map(entry=>entry.name));
+ assert(names.has('InvokeMethod'));assert(!names.has('GetBusObject'));compatible.dispose();
+
+ const explicit=new ScriptService('file:///workspace/Service.escript','// @this: Application\nfunction Test() { this.GetBusObject("Account"); }',{thisType:'Service'});
+ assert.deepEqual(explicit.diagnostics(),[]);explicit.dispose();
+});
 test('comment-declared this includes top-level members from sibling scripts', () => {
  const helperUri='file:///workspace/Shared.escript';
  const source='var LocalProperty: chars = "local";\n// @this: Service\nfunction Test() { this.Shared/*cursor*/Method("ok"); this.SharedProperty; this.LocalProperty; }';

@@ -150,6 +150,7 @@ class ScriptService {
             strict: options.strict !== false, useUnknownInCatchVariables: false,
             target: ts.ScriptTarget.ES5, module: ts.ModuleKind.None,
             moduleDetection: ts.ModuleDetectionKind.Legacy,
+            siebelDefaultThisType: options.thisType,
             ignoreDeprecations: '6.0', skipLibCheck: false,
         };
         this.metadata = options.metadata;
@@ -190,6 +191,8 @@ class ScriptService {
         const sourceFile = program?.getSourceFile(this.file);
         const checker = program?.getTypeChecker();
         const hasThisDirective = /^\s*\/\/\s*(?:@this\s*[:=]|this\s*:)[ \t]*[A-Za-z_$][\w$]*[ \t]*;?[ \t]*$/m.test(this.text);
+        const defaultThisType = this.options.siebelDefaultThisType;
+        if (hasThisDirective) this.options.siebelDefaultThisType = undefined;
         this.options.siebelThisComments = false;
         try {
             return [...this.languageService.getSyntacticDiagnostics(this.file),
@@ -201,6 +204,7 @@ class ScriptService {
                 .map(escriptDiagnostic);
         } finally {
             this.options.siebelThisComments = true;
+            this.options.siebelDefaultThisType = defaultThisType;
         }
     }
     completions(position, options = {}) {

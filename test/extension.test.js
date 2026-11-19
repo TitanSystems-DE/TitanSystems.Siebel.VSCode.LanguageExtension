@@ -11,6 +11,8 @@ class Position { constructor(line,character){this.line=line;this.character=chara
 class Range { constructor(start,end){this.start=start;this.end=end;} }
 class Uri {
  constructor(value){this.value=value;this.path=decodeURIComponent(new URL(value).pathname);}
+ get scheme(){return new URL(this.value).protocol.slice(0,-1);}
+ get authority(){return new URL(this.value).host;}
  toString(){return this.value;}
  static parse(s){return new Uri(s);}
  static file(s){return new Uri(pathToFileURL(s).href);}
@@ -56,6 +58,7 @@ function stub(document){
   createFileSystemWatcher:()=>({onDidChange:()=>disposable(),onDidCreate:()=>disposable(),onDidDelete:()=>disposable(),dispose(){}})},
  languages:{createDiagnosticCollection:()=>({set:(uri,data)=>diagnostics.set(uri.toString(),data),delete:uri=>diagnostics.delete(uri.toString()),dispose(){diagnostics.clear();}})},
  commands:{registerCommand:(name,fn)=>{events[name]=fn;return disposable();}},
+ extensions:{getExtension:()=>undefined,onDidChange:()=>disposable()},
  };
  for(const name of ['onDidOpenTextDocument','onDidChangeTextDocument','onDidCloseTextDocument','onDidChangeConfiguration']) api.workspace[name]=fn=>{events[name]=fn;return disposable();};
  for(const name of ['CompletionItem','Hover','Definition','Reference','SignatureHelp','DocumentFormattingEdit','DocumentSymbol','FoldingRange']) {

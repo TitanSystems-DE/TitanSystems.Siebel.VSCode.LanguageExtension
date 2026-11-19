@@ -1,5 +1,10 @@
 # Unreleased
 
+# 1.0.1 - 2026-11-19
+
+- Add an Endoit compatibility mode that infers `this` as `Service`, `BusComp`, `WebApplet`, or `Application` from Siebel Script And Web Template Editor workspace folders.
+- Enable compatibility by default when the Endoit extension is installed, allow it to be disabled, and warn when activation is requested without the required extension.
+
 # 1.0.0 - 2026-09-30
 
 - Underline `&`-prefixed reference parameters in function declarations and throughout their function bodies.

@@ -2,7 +2,7 @@
   "name": "siebel-escript",
   "displayName": "Siebel eScript (ST)",
   "description": "Siebel eScript language support with typed with-scopes, IntelliSense, documentation and diagnostics.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "titansystems-de",
   "repository": {
     "type": "git",
@@ -107,6 +107,12 @@
           "default": "none",
           "scope": "resource",
           "description": "Selects the optional source for repository-aware Business Object, Business Component, and field completion."
+        },
+        "escript.endoitCompatibilityMode": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Infer the runtime type of 'this' from folders created by the Endoit Siebel Script And Web Template Editor. The mode is effective only while that extension is installed."
         }
       }
     },

@@ -2,6 +2,7 @@
 const vscode = require('vscode');
 const { ScriptService, ts } = require('./service');
 const { createMetadataProvider } = require('./metadata');
+const { ENDOIT_EXTENSION_ID, inferEndoitThisType } = require('./endoit-compatibility');
 
 function documentation(parts, tags = []) {
     const result = new vscode.MarkdownString(ts.displayPartsToString(parts || []));
@@ -47,6 +48,11 @@ function activate(context) {
     let generation = 0;
     let disposed = false;
     const configuration = document => vscode.workspace.getConfiguration('escript', document.uri);
+    const endoitInstalled = () => !!vscode.extensions.getExtension(ENDOIT_EXTENSION_ID);
+    const endoitCompatibilityEnabled = document => configuration(document).get('endoitCompatibilityMode', true) && endoitInstalled();
+    const inferredThisType = document => endoitCompatibilityEnabled(document)
+        ? inferEndoitThisType(document.uri, vscode.workspace.getWorkspaceFolder(document.uri)?.uri)
+        : undefined;
     const eligible = document => document.languageId === 'escript' && !document.isClosed;
     const declarationScript = uri => uri.path.toLowerCase().endsWith('.d.escript');
     const directoryUri = uri => vscode.Uri.joinPath(uri, '..');
@@ -109,7 +115,10 @@ function activate(context) {
             if (requestedGeneration !== generation) return model(document);
             result = models.get(key);
             if (!result) {
-                result = new ScriptService(key, document.getText(), { strict: configuration(document).get('strict', true), metadata }, [...scripts, ...globalDeclarations]);
+                result = new ScriptService(key, document.getText(), {
+                    strict: configuration(document).get('strict', true), metadata,
+                    thisType: inferredThisType(document),
+                }, [...scripts, ...globalDeclarations]);
                 result.directoryKey = directoryKey(document.uri);
                 models.set(key, result);
             }
@@ -335,7 +344,16 @@ function activate(context) {
         if (declarationScript(document.uri)) reset();
         else if (document.languageId === 'escript') invalidateDirectory(document.uri);
     }));
-    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('escript')) reset(); }));
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+        if (!event.affectsConfiguration('escript')) return;
+        reset();
+        if (event.affectsConfiguration('escript.endoitCompatibilityMode')
+            && !endoitInstalled()
+            && vscode.workspace.getConfiguration('escript').get('endoitCompatibilityMode', true)) {
+            vscode.window.showWarningMessage('The Siebel Scripts Editor compatibility mode cannot be enabled because the endoIT “Siebel Script And Web Template Editor” extension is not installed.');
+        }
+    }));
+    if (vscode.extensions.onDidChange) context.subscriptions.push(vscode.extensions.onDidChange(reset));
     context.subscriptions.push(vscode.window.onDidChangeVisibleTextEditors(editors => {
         for (const editor of editors) if (eligible(editor.document)) schedule(editor.document);
     }));
