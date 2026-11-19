@@ -2,7 +2,7 @@
 
 Language support for **Siebel eScript** in Visual Studio Code. The extension adds Siebel-aware IntelliSense, diagnostics, navigation, formatting, and support for scripts split across multiple files.
 
-Version 1.0 provides stable Siebel eScript language support while the built-in declarations and diagnostics continue to evolve with real-world usage.
+Version 1.0.1 provides stable Siebel eScript language support and adds automatic `this` type inference for workspaces managed by the Endoit Siebel Script And Web Template Editor.
 
 ## Features
 
@@ -202,6 +202,19 @@ function Receive(Inputs: PropertySet, Outputs: PropertySet) {
 
 The named type must exist in the built-in declarations or in a workspace `.d.escript` file. Without a header comment, `this` remains intentionally untyped.
 
+### Endoit compatibility mode
+
+When **Siebel Script And Web Template Editor** by endoIT is installed, `escript.endoitCompatibilityMode` is enabled by default. Scripts in Endoit's generated workspace folders receive an inferred `this` type:
+
+| Endoit folder | Inferred type |
+| --- | --- |
+| `Business Service` | `Service` |
+| `Business Component` | `BusComp` |
+| `Applet` | `WebApplet` |
+| `Application` | `Application` |
+
+An explicit `// @this: Type` declaration takes precedence. Scripts outside Endoit's `<connection>/<workspace>/<object type>/<object>/` layout remain untyped. The mode can be disabled in the Siebel eScript settings and cannot become effective unless the Endoit extension is installed.
+
 ## Configuration
 
 The built-in Siebel and runtime declarations are loaded automatically.
@@ -210,6 +223,7 @@ The built-in Siebel and runtime declarations are loaded automatically.
 | --- | --- | --- |
 | `escript.strict` | `true` | Enables strict type checking. This does not enable JavaScript runtime strict mode. |
 | `escript.maxProblems` | `100` | Maximum number of diagnostics shown per file. |
+| `escript.endoitCompatibilityMode` | `true` | Infer `this` for scripts stored in Endoit extension folders when that extension is installed. |
 | `escript.metadataProvider` | `none` | Optional repository metadata provider: `none`, `endoit`, or `native`. |
 
 Example `.vscode/settings.json`:

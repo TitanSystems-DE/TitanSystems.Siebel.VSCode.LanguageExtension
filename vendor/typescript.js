@@ -77090,16 +77090,17 @@ function createTypeChecker(host) {
   }
   var siebelThisTypes;
   function getSiebelThisTypeFromComment(container) {
-    if (!compilerOptions.siebelEScript || compilerOptions.siebelThisComments === false || !isFunctionLike(container)) return void 0;
+    if (!compilerOptions.siebelEScript || !isFunctionLike(container)) return void 0;
     const sourceFile = getSourceFileOfNode(container);
     if (sourceFile.isDeclarationFile) return void 0;
     const cache = siebelThisTypes || (siebelThisTypes = /* @__PURE__ */ new Map());
     if (cache.has(container)) return cache.get(container) || void 0;
     cache.set(container, false);
     const leadingText = sourceFile.text.slice(container.pos, container.getStart(sourceFile));
-    const match = /(?:^|\r?\n)[ \t]*\/\/[ \t]*(?:@this[ \t]*[:=][ \t]*|this[ \t]*:[ \t]*)([A-Za-z_$][\w$]*)[ \t]*;?[ \t]*(?:\r?\n)[ \t]*$/.exec(leadingText);
-    if (!match) return void 0;
-    const symbol = globals.get(escapeLeadingUnderscores(match[1]));
+    const match = compilerOptions.siebelThisComments === false ? void 0 : /(?:^|\r?\n)[ \t]*\/\/[ \t]*(?:@this[ \t]*[:=][ \t]*|this[ \t]*:[ \t]*)([A-Za-z_$][\w$]*)[ \t]*;?[ \t]*(?:\r?\n)[ \t]*$/.exec(leadingText);
+    const typeName = match ? match[1] : compilerOptions.siebelDefaultThisType;
+    if (!typeName) return void 0;
+    const symbol = globals.get(escapeLeadingUnderscores(typeName));
     if (!symbol || !(symbol.flags & 788968 /* Type */)) return void 0;
     const members = createSymbolTable();
     globals.forEach((globalSymbol, name) => {
